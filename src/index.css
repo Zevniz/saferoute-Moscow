@@ -1,0 +1,302 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --app-shadow: 0 30px 80px rgba(0, 72, 160, 0.16);
+  --ambient-shadow: 0 18px 44px rgba(0, 88, 188, 0.1);
+  --panel-border: rgba(255, 255, 255, 0.36);
+  --panel-fill: rgba(255, 255, 255, 0.78);
+  --panel-fill-soft: rgba(255, 255, 255, 0.58);
+  --panel-fill-strong: rgba(255, 255, 255, 0.86);
+  --ink: #17191f;
+  --muted-ink: #4c5564;
+  --accent: #006fe6;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  background: #f6f8fb;
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.app-shell {
+  background:
+    radial-gradient(circle at 18% 8%, rgba(255, 255, 255, 0.94), transparent 34%),
+    radial-gradient(circle at 88% 82%, rgba(0, 112, 235, 0.13), transparent 32%),
+    linear-gradient(180deg, rgba(250, 252, 255, 0.36), rgba(239, 245, 252, 0.54));
+}
+
+.map-atmosphere {
+  background:
+    linear-gradient(180deg, rgba(250, 252, 255, 0.16) 0%, rgba(250, 252, 255, 0) 30%, rgba(238, 245, 255, 0.2) 100%),
+    radial-gradient(circle at left center, rgba(255, 255, 255, 0.5), transparent 42%);
+}
+
+.glass-panel {
+  background: var(--panel-fill);
+  backdrop-filter: blur(32px) saturate(180%);
+  -webkit-backdrop-filter: blur(32px) saturate(180%);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--ambient-shadow);
+}
+
+.command-bar {
+  box-shadow:
+    0 22px 54px rgba(0, 72, 160, 0.13),
+    inset 0 1px 0 rgba(255, 255, 255, 0.74);
+}
+
+.planner-panel {
+  box-shadow:
+    var(--app-shadow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.66);
+}
+
+.top-instruction,
+.trip-sheet {
+  background: var(--panel-fill-strong);
+  backdrop-filter: blur(34px) saturate(180%);
+  -webkit-backdrop-filter: blur(34px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.52);
+  box-shadow:
+    var(--app-shadow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.68);
+}
+
+.soul-gradient {
+  background: linear-gradient(135deg, #0058bc 0%, #0074f2 100%);
+}
+
+.app-tab-rail,
+.endpoint-row,
+.quiet-panel,
+.toggle-row,
+.service-row,
+.instruction-row {
+  background: var(--panel-fill-soft);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.58);
+}
+
+.app-tab-rail {
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+}
+
+.tab-label {
+  max-width: 100%;
+  line-height: 1;
+}
+
+.endpoint-stack {
+  filter: drop-shadow(0 14px 32px rgba(0, 88, 188, 0.05));
+}
+
+.toggle-icon {
+  display: inline-flex;
+  height: 2.25rem;
+  width: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.9rem;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.apple-switch {
+  position: relative;
+  display: inline-flex;
+  width: 2.85rem;
+  height: 1.65rem;
+  flex: 0 0 auto;
+  align-items: center;
+  border-radius: 999px;
+  background: rgba(113, 119, 134, 0.22);
+  transition:
+    background-color 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.apple-switch span {
+  position: absolute;
+  left: 0.22rem;
+  height: 1.2rem;
+  width: 1.2rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.14);
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.apple-switch-on {
+  background: var(--accent);
+  box-shadow: 0 8px 18px rgba(0, 112, 235, 0.22);
+}
+
+.apple-switch-on span {
+  transform: translateX(1.18rem);
+}
+
+.status-dot {
+  height: 0.72rem;
+  width: 0.72rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+}
+
+.status-dot-ok {
+  background: #34c759;
+  box-shadow: 0 0 0 6px rgba(52, 199, 89, 0.12);
+}
+
+.status-dot-warn {
+  background: #ff9f0a;
+  box-shadow: 0 0 0 6px rgba(255, 159, 10, 0.12);
+}
+
+.origin-ping {
+  position: absolute;
+  inset: -14px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(0, 112, 235, 0.22) 0%, rgba(0, 112, 235, 0) 72%);
+  animation: marker-pulse 2.4s ease-out infinite;
+}
+
+.route-card {
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow:
+    0 14px 32px rgba(0, 88, 188, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.52);
+  transition:
+    transform 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease;
+}
+
+.route-card:hover {
+  transform: translateY(-2px);
+}
+
+.route-card-active {
+  animation: card-select-pop 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.maplibregl-ctrl-group {
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 1rem;
+  box-shadow: 0 16px 36px rgba(0, 88, 188, 0.11);
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(26px) saturate(170%);
+  -webkit-backdrop-filter: blur(26px) saturate(170%);
+}
+
+.maplibregl-ctrl button {
+  width: 40px;
+  height: 40px;
+}
+
+.maplibregl-ctrl button .maplibregl-ctrl-icon {
+  opacity: 0.84;
+}
+
+.maplibregl-ctrl-attrib,
+.maplibregl-ctrl-bottom-right,
+.maplibregl-ctrl-bottom-left {
+  display: none !important;
+}
+
+::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+@keyframes marker-pulse {
+  0% {
+    transform: scale(0.82);
+    opacity: 0.78;
+  }
+  70% {
+    transform: scale(1.08);
+    opacity: 0.08;
+  }
+  100% {
+    transform: scale(1.08);
+    opacity: 0;
+  }
+}
+
+@keyframes card-select-pop {
+  0% {
+    transform: translateY(3px) scale(0.985);
+    box-shadow: 0 0 0 rgba(0, 88, 188, 0);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    box-shadow: 0 18px 40px rgba(0, 88, 188, 0.14);
+  }
+}
+
+@media (max-width: 767px) {
+  .planner-panel {
+    top: 5.75rem;
+    height: calc(100% - 6.5rem);
+    padding: 1.1rem;
+    border-radius: 1.65rem;
+  }
+
+  .app-tab-rail {
+    gap: 0.125rem;
+    padding: 0.2rem;
+  }
+
+  .app-tab-rail button {
+    padding-left: 0.18rem;
+    padding-right: 0.18rem;
+  }
+
+  .app-tab-rail svg {
+    height: 14px;
+    width: 14px;
+  }
+
+  .tab-label {
+    font-size: 9px;
+  }
+
+  .top-instruction {
+    border-radius: 1.55rem;
+  }
+
+  .trip-sheet {
+    align-items: flex-start;
+    border-radius: 1.55rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}

@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>LuminousMaps</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-secondary-fixed-variant": "#26467d",
+                        "secondary-container": "#a1befd",
+                        "surface-bright": "#faf9fe",
+                        "tertiary-fixed": "#ffdbcc",
+                        "on-background": "#1a1b1f",
+                        "on-error": "#ffffff",
+                        "on-primary": "#ffffff",
+                        "inverse-primary": "#adc6ff",
+                        "on-secondary-container": "#2d4c83",
+                        "surface-tint": "#005bc1",
+                        "error-container": "#ffdad6",
+                        "secondary-fixed": "#d8e2ff",
+                        "error": "#ba1a1a",
+                        "surface-container-highest": "#e3e2e7",
+                        "on-secondary": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "inverse-on-surface": "#f1f0f5",
+                        "on-tertiary-container": "#fffbff",
+                        "on-primary-container": "#fefcff",
+                        "on-surface-variant": "#414755",
+                        "on-tertiary-fixed-variant": "#7c2e00",
+                        "tertiary-fixed-dim": "#ffb595",
+                        "on-primary-fixed-variant": "#004493",
+                        "surface-container-high": "#e9e7ed",
+                        "inverse-surface": "#2f3034",
+                        "on-tertiary-fixed": "#351000",
+                        "surface-variant": "#e3e2e7",
+                        "primary-fixed": "#d8e2ff",
+                        "surface": "#faf9fe",
+                        "on-surface": "#1a1b1f",
+                        "on-tertiary": "#ffffff",
+                        "outline": "#717786",
+                        "primary-fixed-dim": "#adc6ff",
+                        "secondary": "#405e96",
+                        "outline-variant": "#c1c6d7",
+                        "tertiary": "#9e3d00",
+                        "on-primary-fixed": "#001a41",
+                        "surface-container": "#eeedf3",
+                        "on-secondary-fixed": "#001a41",
+                        "surface-dim": "#dad9df",
+                        "tertiary-container": "#c64f00",
+                        "primary-container": "#0070eb",
+                        "primary": "#0058bc",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container-low": "#f4f3f8",
+                        "secondary-fixed-dim": "#adc6ff",
+                        "background": "#faf9fe"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {},
+                    "fontFamily": {
+                        "headline": ["Inter", "sans-serif"],
+                        "body": ["Inter", "sans-serif"],
+                        "label": ["Inter", "sans-serif"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; margin: 0; overflow: hidden; }
+        .glass-panel {
+            background-color: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+        }
+        .dark .glass-panel {
+            background-color: rgba(15, 23, 42, 0.8);
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface h-screen w-screen relative">
+<!-- Background Map -->
+<div class="absolute inset-0 z-0 bg-cover bg-center" data-alt="High quality, detailed digital map showing city streets, parks, and water bodies with clean, minimalist typography and subtle color palette" data-location="San Francisco" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuA3eWyjL3KOa2tcODAl9MTHeQ7Yzpq3vt9Ido8SEj8irQpGRwQZI1Zh-32KLODgLwN-8JlmuS6kifaSjcOx7j_ar1VxYkxI-I-x252ndkEc7TPqUqJL9WnJvYH6M5VySu2PzO2jS_-zk1qalvXPX17KV_QHk4H7Mldx8LZ16B8uNiX7OsyIhlFajyiT5P5RXRS-l_TRLpXjz4ns9LCgiYj2KhjKOdHSwmT2a4Fa6F9Auz7xSg19cPShPHJTmsiaWjN24V0JdbN5Sdtb');"></div>
+<!-- TopNavBar (Search Bar) -->
+<nav class="fixed top-0 left-0 z-50 p-4 md:w-auto pointer-events-none flex items-start"><div class="pointer-events-auto ml-4 mt-4">
+<button class="glass-panel w-12 h-12 rounded-full shadow-2xl shadow-blue-900/10 flex items-center justify-center text-on-surface-variant hover:bg-surface-container-low transition-colors" id="menu-toggle-btn" onclick="document.getElementById('side-menu-panel').classList.remove('-translate-x-full')">
+<span class="material-symbols-outlined">menu</span>
+</button>
+</div>
+<div class="glass-panel rounded-2xl w-full max-w-md shadow-2xl shadow-blue-900/10 pointer-events-auto flex items-center p-2 border-none">
+<span class="material-symbols-outlined text-outline p-2">search</span>
+<input class="w-full bg-transparent border-none focus:ring-0 text-on-surface placeholder-outline font-body text-sm py-2 px-1 outline-none" placeholder="Search LuminousMaps" type="text"/>
+<div class="flex items-center gap-1 border-l border-surface-container-highest pl-2 ml-2">
+<button aria-label="Account Circle" class="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-colors">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+</button>
+<button aria-label="Settings" class="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-colors">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+</div>
+</div>
+</nav><div class="fixed inset-y-0 left-0 w-80 z-[60] transform -translate-x-full transition-transform duration-300 ease-in-out pointer-events-auto" id="side-menu-panel">
+<div class="glass-panel h-full shadow-2xl flex flex-col p-6">
+<div class="flex items-center justify-between mb-8">
+<h2 class="text-xl font-bold text-on-surface">Menu</h2>
+<button class="p-2 rounded-full hover:bg-surface-container-low" onclick="document.getElementById('side-menu-panel').classList.add('-translate-x-full')">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<nav class="flex flex-col gap-2">
+<button class="flex items-center gap-4 p-4 rounded-xl hover:bg-surface-container-low text-on-surface-variant transition-colors">
+<span class="material-symbols-outlined">traffic</span>
+<span class="font-medium">Traffic</span>
+</button>
+<button class="flex items-center gap-4 p-4 rounded-xl hover:bg-surface-container-low text-on-surface-variant transition-colors">
+<span class="material-symbols-outlined">satellite_alt</span>
+<span class="font-medium">Satellite</span>
+</button>
+<button class="flex items-center gap-4 p-4 rounded-xl hover:bg-surface-container-low text-on-surface-variant transition-colors">
+<span class="material-symbols-outlined">favorite</span>
+<span class="font-medium">Favorites</span>
+</button>
+<div class="h-px bg-surface-container-highest my-4"></div>
+<button class="flex items-center gap-4 p-4 rounded-xl hover:bg-surface-container-low text-on-surface-variant transition-colors">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-medium">Settings</span>
+</button>
+<button class="flex items-center gap-4 p-4 rounded-xl hover:bg-surface-container-low text-on-surface-variant transition-colors">
+<span class="material-symbols-outlined">help</span>
+<span class="font-medium">Help &amp; Support</span>
+</button>
+</nav>
+</div>
+</div>
+<!-- SideNavBar (Map Controls) -->
+<div class="fixed right-0 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-4 pointer-events-none pr-4">
+<div class="glass-panel rounded-full w-14 flex flex-col items-center py-4 shadow-xl shadow-blue-900/10 pointer-events-auto gap-4">
+<button aria-label="Zoom In" class="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-all group relative flex flex-col items-center">
+<span class="material-symbols-outlined text-xl" data-icon="add">add</span>
+</button>
+<button aria-label="Zoom Out" class="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-all group relative flex flex-col items-center">
+<span class="material-symbols-outlined text-xl" data-icon="remove">remove</span>
+</button>
+<div class="w-8 h-px bg-surface-container-highest my-1"></div>
+<button aria-label="Compass" class="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-all group relative flex flex-col items-center">
+<span class="material-symbols-outlined text-xl" data-icon="explore">explore</span>
+</button>
+<button aria-label="Layers" class="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-all group relative flex flex-col items-center">
+<span class="material-symbols-outlined text-xl" data-icon="layers">layers</span>
+</button>
+<div class="w-8 h-px bg-surface-container-highest my-1"></div>
+<button aria-label="Location" class="bg-gradient-to-br from-primary to-primary-container text-on-primary rounded-full p-2 transition-all hover:opacity-90 shadow-lg shadow-primary/20 scale-100 active:scale-95 duration-200">
+<span class="material-symbols-outlined text-xl" data-icon="my_location">my_location</span>
+</button>
+</div>
+</div>
+<!-- Weather Widget (Bottom Left) -->
+<div class="fixed bottom-0 left-0 z-40 p-6 pointer-events-none">
+<div class="glass-panel rounded-xl shadow-xl shadow-slate-900/10 pointer-events-auto p-4 flex items-center gap-4 border border-outline-variant/15">
+<div class="flex flex-col">
+<span class="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1">Weather</span>
+<div class="flex items-end gap-2">
+<span class="text-2xl font-headline font-bold text-on-surface leading-none">72°</span>
+<span class="material-symbols-outlined text-secondary text-xl mb-0.5">partly_cloudy_day</span>
+</div>
+</div>
+<div class="h-8 w-px bg-surface-container-highest"></div>
+<div class="flex flex-col">
+<span class="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-1">AQI</span>
+<div class="flex items-center gap-2">
+<span class="text-sm font-semibold text-on-surface">45</span>
+<span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">Good</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer -->
+<div class="fixed bottom-0 right-0 z-50 flex gap-4 items-center mb-2 mr-4 pointer-events-none">
+<div class="bg-white/10 dark:bg-black/10 backdrop-blur-md rounded-t-xl px-4 py-1 pointer-events-auto">
+<div class="flex gap-4 items-center text-[10px] font-medium text-slate-500">
+<span class="">© 2024 Luminous Cartographer | Scale 1:2000</span>
+<div class="flex gap-3">
+<a class="text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors duration-300" href="#">Privacy</a>
+<a class="text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors duration-300" href="#">Terms</a>
+<a class="text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors duration-300" href="#">Report an Issue</a>
+</div>
+</div>
+</div>
+</div>
+</body></html>

@@ -1,0 +1,49 @@
+{
+  "name": "saferoute-ultimate",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:full": "./scripts/start-dev.sh",
+    "build": "vite build",
+    "preview": "vite preview",
+    "dev:api": "bash scripts/start-api.sh",
+    "lint": "node scripts/lint.mjs",
+    "typecheck:backend": "pyright",
+    "test:backend": "./venv/bin/python -m pytest -q",
+    "test:e2e": "node scripts/e2e-smoke.mjs",
+    "smoke:api": "bash scripts/smoke-api.sh",
+    "smoke:self-hosted": "bash scripts/smoke-self-hosted.sh",
+    "db:telemetry-schema": "bash scripts/apply-telemetry-schema.sh",
+    "db:telemetry-check": "bash scripts/check-telemetry-schema.sh",
+    "self-hosted:preflight": "bash scripts/self-hosted-preflight.sh",
+    "self-hosted:up": "docker compose up -d",
+    "self-hosted:down": "docker compose down",
+    "self-hosted:logs": "docker compose logs -f",
+    "self-hosted:ps": "docker compose ps",
+    "self-hosted:check": "npm run self-hosted:preflight && npm run smoke:self-hosted",
+    "bootstrap:self-hosted": "bash scripts/data/build-routing-stack.sh",
+    "check:backend": "npm run lint && npm run typecheck:backend && npm run test:backend",
+    "check": "npm run lint && npm run test:backend && npm run build",
+    "check:full": "npm run check && npm run smoke:api && npm run test:e2e"
+  },
+  "dependencies": {
+    "framer-motion": "^10.16.4",
+    "lucide-react": "^0.300.0",
+    "maplibre-gl": "^3.6.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-map-gl": "^7.1.7"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@vitejs/plugin-react": "^4.2.0",
+    "autoprefixer": "^10.4.16",
+    "playwright": "^1.59.1",
+    "postcss": "^8.4.31",
+    "pyright": "^1.1.409",
+    "tailwindcss": "^3.3.5",
+    "vite": "^5.0.0"
+  }
+}

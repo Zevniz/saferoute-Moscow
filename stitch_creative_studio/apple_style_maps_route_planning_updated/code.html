@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Route Planning - The Luminous Cartographer</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-secondary-container": "#2d4c83",
+                        "on-error-container": "#93000a",
+                        "secondary-fixed": "#d8e2ff",
+                        "primary": "#0058bc",
+                        "tertiary-fixed-dim": "#ffb595",
+                        "surface-container-high": "#e9e7ed",
+                        "surface-container-low": "#f4f3f8",
+                        "on-secondary": "#ffffff",
+                        "surface": "#faf9fe",
+                        "outline": "#717786",
+                        "on-secondary-fixed": "#001a41",
+                        "on-primary-fixed": "#001a41",
+                        "surface-tint": "#005bc1",
+                        "on-surface-variant": "#414755",
+                        "error": "#ba1a1a",
+                        "on-tertiary-container": "#fffbff",
+                        "primary-fixed": "#d8e2ff",
+                        "outline-variant": "#c1c6d7",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary": "#405e96",
+                        "secondary-container": "#a1befd",
+                        "background": "#faf9fe",
+                        "on-error": "#ffffff",
+                        "on-tertiary": "#ffffff",
+                        "on-background": "#1a1b1f",
+                        "surface-container-highest": "#e3e2e7",
+                        "on-surface": "#1a1b1f",
+                        "surface-bright": "#faf9fe",
+                        "surface-variant": "#e3e2e7",
+                        "surface-dim": "#dad9df",
+                        "surface-container": "#eeedf3",
+                        "inverse-on-surface": "#f1f0f5",
+                        "inverse-primary": "#adc6ff",
+                        "tertiary": "#9e3d00",
+                        "secondary-fixed-dim": "#adc6ff",
+                        "tertiary-container": "#c64f00",
+                        "on-primary-fixed-variant": "#004493",
+                        "on-secondary-fixed-variant": "#26467d",
+                        "inverse-surface": "#2f3034",
+                        "error-container": "#ffdad6",
+                        "tertiary-fixed": "#ffdbcc",
+                        "primary-container": "#0070eb",
+                        "on-tertiary-fixed-variant": "#7c2e00",
+                        "on-tertiary-fixed": "#351000",
+                        "on-primary": "#ffffff",
+                        "on-primary-container": "#fefcff",
+                        "primary-fixed-dim": "#adc6ff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {},
+                    "fontFamily": {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .organic-shadow { box-shadow: 0 12px 40px rgba(0, 88, 188, 0.08); }
+        .glass-panel { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(24px); }
+        .soul-gradient { background: linear-gradient(135deg, #0058bc, #0070eb); }
+    </style>
+</head>
+<body class="bg-surface h-screen w-full overflow-hidden relative text-on-surface">
+<!-- Map Background Image -->
+<div class="absolute inset-0 z-0 bg-cover bg-center" data-alt="High quality, detailed digital map showing city streets, parks, and water bodies with clean, minimalist typography and subtle color palette" data-location="San Francisco" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuA3eWyjL3KOa2tcODAl9MTHeQ7Yzpq3vt9Ido8SEj8irQpGRwQZI1Zh-32KLODgLwN-8JlmuS6kifaSjcOx7j_ar1VxYkxI-I-x252ndkEc7TPqUqJL9WnJvYH6M5VySu2PzO2jS_-zk1qalvXPX17KV_QHk4H7Mldx8LZ16B8uNiX7OsyIhlFajyiT5P5RXRS-l_TRLpXjz4ns9LCgiYj2KhjKOdHSwmT2a4Fa6F9Auz7xSg19cPShPHJTmsiaWjN24V0JdbN5Sdtb');">
+<!-- Overlay for route lines (simulated via SVG overlay for aesthetic) -->
+<svg class="absolute inset-0 w-full h-full pointer-events-none" preserveaspectratio="none">
+<path class="opacity-70 drop-shadow-md" d="M 300,500 C 400,450 500,600 700,400 C 800,300 900,450 1100,200" fill="none" stroke="#0058bc" stroke-linecap="round" stroke-linejoin="round" stroke-width="8"></path>
+<path class="opacity-90" d="M 300,500 C 400,450 500,600 700,400 C 800,300 900,450 1100,200" fill="none" stroke="#0070eb" stroke-linecap="round" stroke-linejoin="round" stroke-width="4"></path>
+</svg>
+</div>
+<!-- TopNavBar (Search Bar) -->
+<nav class="fixed top-0 left-0 z-50 p-4 w-full md:w-auto pointer-events-none">
+<div class="glass-panel rounded-2xl w-full max-w-md shadow-2xl shadow-blue-900/10 pointer-events-auto flex items-center p-2 border-none"><button aria-label="Menu" class="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-colors ml-1 focus:outline-none">
+<span class="material-symbols-outlined" data-icon="menu">menu</span>
+</button>
+<span class="material-symbols-outlined text-outline py-2 pr-2 pl-1">search</span>
+<input class="w-full bg-transparent border-none focus:ring-0 text-on-surface placeholder-outline font-body text-sm py-2 px-1 outline-none" placeholder="Search LuminousMaps" type="text"/>
+<div class="flex items-center gap-1 border-l border-surface-container-highest pl-2 ml-2">
+<button aria-label="Account Circle" class="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-colors">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+</button>
+<button aria-label="Settings" class="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-colors">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+</div>
+</div>
+</nav>
+<!-- SideNavBar (Floating Panel) -->
+<aside class="fixed left-0 top-[76px] z-40 flex flex-col p-6 overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl rounded-3xl m-4 h-[calc(100%-6.5rem)] w-80 shadow-2xl shadow-blue-900/5 organic-shadow glass-panel">
+<!-- Header -->
+<div class="mb-6">
+<h1 class="text-lg font-black text-slate-900 dark:text-white font-['Inter'] tracking-tight">Route Options</h1>
+<p class="text-sm font-medium text-slate-600 dark:text-slate-400">Select your preferred mode</p>
+</div>
+<!-- Mode Selector -->
+<div class="flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50 p-1.5 rounded-full mb-8">
+<button class="p-2 hover:bg-slate-200/50 dark:hover:bg-slate-700/50 rounded-full hover:translate-x-1 transition-transform active:scale-[0.98] duration-300 text-slate-600 flex-1 flex justify-center">
+<span class="material-symbols-outlined" data-icon="directions_car">directions_car</span>
+</button>
+<button class="p-2 bg-blue-600 text-white rounded-full shadow-lg shadow-blue-500/30 flex-1 flex justify-center active:scale-[0.98] transition-all duration-300">
+<span class="material-symbols-outlined" data-icon="directions_walk">directions_walk</span>
+</button>
+<button class="p-2 text-slate-600 hover:bg-slate-200/50 dark:hover:bg-slate-700/50 rounded-full hover:translate-x-1 transition-transform active:scale-[0.98] duration-300 flex-1 flex justify-center">
+<span class="material-symbols-outlined" data-icon="directions_bus">directions_bus</span>
+</button>
+<button class="p-2 text-slate-600 hover:bg-slate-200/50 dark:hover:bg-slate-700/50 rounded-full hover:translate-x-1 transition-transform active:scale-[0.98] duration-300 flex-1 flex justify-center">
+<span class="material-symbols-outlined" data-icon="directions_bike">directions_bike</span>
+</button>
+</div>
+<!-- Input Fields -->
+<div class="space-y-3 mb-8 relative">
+<!-- connecting line -->
+<div class="absolute left-4 top-5 bottom-5 w-0.5 bg-outline-variant/30 z-0"></div>
+<div class="relative z-10 flex items-center bg-surface-container-low rounded-xl p-3 border border-transparent focus-within:border-primary/20 focus-within:bg-surface-container-lowest transition-all">
+<div class="w-3 h-3 rounded-full bg-primary mr-3 shadow-[0_0_8px_rgba(0,88,188,0.4)]"></div>
+<input class="bg-transparent border-none w-full text-sm font-medium text-on-surface focus:ring-0 p-0" placeholder="From" type="text" value="My Location"/>
+</div>
+<div class="relative z-10 flex items-center bg-surface-container-low rounded-xl p-3 border border-transparent focus-within:border-primary/20 focus-within:bg-surface-container-lowest transition-all">
+<div class="w-3 h-3 rounded-sm bg-error mr-3"></div>
+<input class="bg-transparent border-none w-full text-sm font-medium text-on-surface focus:ring-0 p-0" placeholder="To" type="text" value="Philz Coffee"/>
+</div>
+<button class="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-outline hover:text-on-surface transition-colors bg-surface-container-lowest rounded-full shadow-sm z-20">
+<span class="material-symbols-outlined text-sm">swap_vert</span>
+</button>
+</div>
+<!-- Suggested Routes -->
+<div class="flex-1 overflow-y-auto space-y-4 pr-2 pb-4">
+<!-- Active Route Card -->
+<div class="bg-surface-container-lowest rounded-xl p-4 border border-primary/20 shadow-[0_4px_20px_rgba(0,88,188,0.05)] cursor-pointer hover:bg-surface-container-low/50 transition-colors relative overflow-hidden group">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-primary"></div>
+<div class="flex justify-between items-start mb-2">
+<div>
+<h3 class="text-lg font-bold text-on-surface tracking-tight leading-tight">12 min</h3>
+<p class="text-xs font-medium text-primary mt-0.5">Fastest Route</p>
+</div>
+<span class="text-sm font-medium text-on-surface-variant">4.2 mi</span>
+</div>
+<p class="text-xs text-on-surface-variant">via Market St.</p>
+</div>
+<!-- Alternative Route Card -->
+<div class="bg-surface-container-low rounded-xl p-4 cursor-pointer hover:bg-surface-container-highest/50 transition-colors">
+<div class="flex justify-between items-start mb-2">
+<div>
+<h3 class="text-lg font-semibold text-on-surface-variant tracking-tight leading-tight">15 min</h3>
+<p class="text-xs font-medium text-outline mt-0.5">Alternative</p>
+</div>
+<span class="text-sm font-medium text-on-surface-variant">4.8 mi</span>
+</div>
+<p class="text-xs text-outline">via Mission St.</p>
+</div>
+<!-- Alternative Route Card -->
+<div class="bg-surface-container-low rounded-xl p-4 cursor-pointer hover:bg-surface-container-highest/50 transition-colors">
+<div class="flex justify-between items-start mb-2">
+<div>
+<h3 class="text-lg font-semibold text-on-surface-variant tracking-tight leading-tight">18 min</h3>
+<p class="text-xs font-medium text-outline mt-0.5">Scenic Route</p>
+</div>
+<span class="text-sm font-medium text-on-surface-variant">5.1 mi</span>
+</div>
+<p class="text-xs text-outline">via The Embarcadero</p>
+</div>
+</div>
+<!-- CTA -->
+<div class="mt-auto pt-4">
+<button class="w-full soul-gradient text-on-primary py-4 rounded-full font-bold text-sm tracking-wide shadow-[0_8px_24px_rgba(0,88,188,0.25)] hover:opacity-90 transition-opacity active:scale-[0.98]">
+                Start Navigation
+            </button>
+</div>
+</aside>
+<!-- Weather Widget (Bottom Left corner) -->
+<div class="fixed bottom-6 right-6 z-40 glass-panel rounded-2xl p-4 flex items-center gap-4 organic-shadow border border-white/40">
+<span class="material-symbols-outlined text-primary text-3xl" data-weight="fill" style="font-variation-settings: 'FILL' 1;">partly_cloudy_day</span>
+<div>
+<h4 class="text-lg font-bold text-on-surface leading-none">68°</h4>
+<p class="text-xs text-on-surface-variant font-medium mt-1">San Francisco</p>
+</div>
+</div>
+</body></html>
