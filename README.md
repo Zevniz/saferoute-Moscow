@@ -1,6 +1,48 @@
 # SafeRoute
 
-SafeRoute is a Moscow-first routing and sidewalk-telemetry platform with a real browser-facing FastAPI gateway, Valhalla maneuvers, Photon search, PostGIS/pgRouting safety enrichment, and H3 sidewalk-quality aggregation.
+SafeRoute is a public beta safety-first navigator for Moscow micromobility. It uses real Valhalla/PostGIS routes and active OpenStreetMap-derived enrichment for surface, surface quality, sidewalk presence, lighting tags, sparse numeric slope data, and OSM crossing way counts. Advanced safety layers for curb risk, measured traffic, pedestrian density, micromobility zones, production weather risk, and telemetry confidence are not active by default and do not affect scoring unless a real validated source/provider is enabled.
+
+## Public Beta Data Status
+
+SafeRoute is ready for public beta / self-hosted MVP use. It is not a full public safety launch for every desired safety layer.
+
+Active real enrichment datasets:
+
+- Dataset: `osm-moscow-oblast-tags-20260419`
+- Source: OpenStreetMap way tags via the Geofabrik Central Federal District extract
+- License: ODbL 1.0; attribution required
+- Imported rows: `1,126,588`
+- Average confidence: `0.89`
+- Dataset: `osm-moscow-oblast-crossings-20260419`
+- Source: OpenStreetMap crossing way tags via the Geofabrik Central Federal District extract
+- License: ODbL 1.0; attribution required
+- Imported rows: `62,328`
+- Average confidence: `0.909`
+
+Active real factors:
+
+| Factor | Rows | Source |
+|---|---:|---|
+| `surface_type` | `1,047,856` | OSM `surface` |
+| `surface_quality` | `101,604` | OSM `smoothness` |
+| `sidewalk_presence` | `12,424` | OSM `sidewalk`, `sidewalk:left`, `sidewalk:right` |
+| `lighting_quality` | `492,436` | OSM `lit` tags, not measured illumination |
+| `slope_percent` | `452` | Numeric OSM `incline` percent values only |
+| `crossing_count` | `62,328` | Direct OSM crossing ways mapped through `public.moscow_network.osmid` |
+| `controlled_crossing_count` | `62,328` | OSM `crossing=*` / signal tags where present |
+| `uncontrolled_crossing_count` | `62,328` | OSM crossing ways where tags indicate or imply uncontrolled/unknown |
+| `crossing_risk` | `62,328` | Conservative tag-derived crossing risk; node-only crossings are not guessed |
+
+Advanced layers not yet active:
+
+- curb risk / curb density
+- measured traffic intensity
+- pedestrian density
+- micromobility forbidden/slow zones
+- weather-sensitive risk by default; optional Open-Meteo integration is available behind `SAFEROUTE_WEATHER_ENABLED=true`
+- telemetry confidence
+
+Missing layers stay `null` or absent from route score reasons. They do not create penalties, bonuses, UI claims, or green checks.
 
 ## Local Run
 
@@ -70,6 +112,10 @@ scripts/data/download-osm.sh
 scripts/data/extract-moscow-oblast.sh
 scripts/data/import-safety-graph.sh
 scripts/data/build-routing-stack.sh
+npm run db:graph-export
+npm run db:graph-restore
+npm run bootstrap:check
+npm run bootstrap:fresh
 ```
 
 The bootstrap pipeline:
@@ -83,6 +129,8 @@ The bootstrap pipeline:
 - runs `scripts/smoke-self-hosted.sh`.
 
 Photon remains self-hosted in Docker, but its local index is bootstrapped inside the container volume on first start. Valhalla uses the repo-local `data/osm/moscow-oblast.osm.pbf` extract directly.
+
+Fresh bootstrap from empty Docker volumes requires a real `public.moscow_network` source. Supported sources are `SOURCE_DATABASE_URL` pointing at a real PostGIS database, or `GRAPH_DUMP_FILE=data/graph/moscow_network.dump` produced by `npm run db:graph-export`. If neither exists, `npm run bootstrap:check` and `npm run bootstrap:fresh` fail with `GRAPH_BOOTSTRAP_REQUIRED` instead of creating fake graph rows.
 
 For route query profiling:
 
@@ -111,9 +159,18 @@ Backend verification status and exact pass/fail criteria are tracked in [Backend
 npm run lint
 npm run typecheck:backend
 npm run test:backend
+npm run db:telemetry-check
+npm run db:migrate
+npm run db:migration-check
+npm run db:graph-check
+npm run db:graph-source-check
+npm run db:enrichment-check
 npm run build
 npm run smoke:api
 npm run smoke:self-hosted
+npm run route:corpus-check
+npm run perf:route-smoke
+npm run perf:telemetry-smoke
 npm run bootstrap:self-hosted
 npm run self-hosted:preflight
 npm run self-hosted:check
@@ -129,8 +186,26 @@ Backend-only passing state is `npm run check:backend` plus `npm run smoke:api` a
 ## Docs
 
 - [Architecture](docs/architecture.md)
+- [Auth And Rate-Limit Rollout](docs/AUTH_RATE_LIMIT_PLAN.md)
 - [Backend Production Readiness](docs/BACKEND_PRODUCTION_READINESS.md)
 - [Backend Verification](docs/BACKEND_VERIFICATION.md)
+- [Graph Data Quality](docs/GRAPH_DATA_QUALITY.md)
+- [Graph Bootstrap Requirement](docs/GRAPH_BOOTSTRAP_REQUIRED.md)
+- [Enrichment Data Model](docs/ENRICHMENT_DATA.md)
+- [Enrichment Sources](docs/ENRICHMENT_SOURCES.md)
+- [Scoring Factors](docs/SCORING_FACTORS.md)
+- [Weather Risk](docs/WEATHER_RISK.md)
+- [Telemetry Confidence](docs/TELEMETRY_CONFIDENCE.md)
+- [Public Beta Release Notes](docs/PUBLIC_BETA_RELEASE_NOTES.md)
+- [Data Attribution](docs/DATA_ATTRIBUTION.md)
+- [Full Safety Launch Roadmap](docs/FULL_SAFETY_LAUNCH_ROADMAP.md)
+- [Migration Plan](docs/MIGRATION_PLAN.md)
+- [Public Launch Security](docs/SECURITY_PUBLIC_LAUNCH.md)
+- [Production Security Env](docs/SECURITY_PRODUCTION_ENV.md)
+- [Public Launch Operations](docs/OPERATIONS_PUBLIC_LAUNCH.md)
+- [Route Quality Corpus](docs/ROUTE_QUALITY_CORPUS.md)
+- [Backup And Restore](docs/BACKUP_RESTORE.md)
+- [Incident Runbook](docs/RUNBOOK.md)
 - [Routing and Safety](docs/routing-safety.md)
 - [Scoring Roadmap](docs/scoring-roadmap.md)
 - [Self-Hosted Backend Stack](docs/SELF_HOSTED.md)

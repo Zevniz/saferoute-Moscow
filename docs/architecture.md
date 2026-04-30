@@ -38,6 +38,7 @@ The frontend never calls public Nominatim. Search, reverse geocoding, routing, s
 - `GET /api/search?q=<text>&limit=<n>` returns `id`, `label`, `lat`, `lon`, `bbox`, `kind`.
 - `GET /api/reverse?lat=<>&lon=<>` returns the same place shape plus `source`.
 - `GET /api/route?lat1&lon1&lat2&lon2&profile=<walk|bike|car>&mode=<safest|fastest|balanced|accessible>&alternatives=3` returns GeoJSON `routes[]` with backward-compatible `properties.safety_index` and additive `properties.score` explanations.
+  `properties.score.data_sources.enrichment` reports whether enrichment is active and lists real active factors. Inactive advanced factors remain `null` or absent in `properties.score.factors`, and their reasons do not appear.
 - `GET /route` is a temporary compatibility alias for `/api/route`.
 - `GET /api/health` reports `postgres`, `photon`, `valhalla`, and optional per-profile readiness; public fallback usage is surfaced as `fallback`/`degraded`, not hidden as `ok`.
 - `GET /api/metrics` exposes local Prometheus text metrics for request latency, dependency latency, route cache, route variants, and routing failures.

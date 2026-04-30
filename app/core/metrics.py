@@ -81,10 +81,22 @@ def render_prometheus() -> str:
         "# TYPE saferoute_dependency_latency_ms histogram",
         "# HELP saferoute_route_cache_total Route cache hits and misses.",
         "# TYPE saferoute_route_cache_total counter",
+        "# HELP saferoute_safe_geometry_fallback_total Safe geometry bounded-route fallbacks by reason.",
+        "# TYPE saferoute_safe_geometry_fallback_total counter",
+        "# HELP saferoute_safe_geometry_duration_ms Safe geometry pgRouting duration in milliseconds.",
+        "# TYPE saferoute_safe_geometry_duration_ms histogram",
         "# HELP saferoute_route_variants_total Route responses by profile and variant.",
         "# TYPE saferoute_route_variants_total counter",
         "# HELP saferoute_route_failures_total Route failures grouped by reason.",
         "# TYPE saferoute_route_failures_total counter",
+        "# HELP saferoute_weather_requests_total Optional weather provider requests by provider/status.",
+        "# TYPE saferoute_weather_requests_total counter",
+        "# HELP saferoute_weather_latency_ms Optional weather provider latency in milliseconds.",
+        "# TYPE saferoute_weather_latency_ms histogram",
+        "# HELP saferoute_telemetry_confidence_total Route telemetry-confidence lookups by status.",
+        "# TYPE saferoute_telemetry_confidence_total counter",
+        "# HELP saferoute_telemetry_confidence_route_cells Route H3 cell count sampled for telemetry confidence.",
+        "# TYPE saferoute_telemetry_confidence_route_cells histogram",
     ]
 
     with _LOCK:

@@ -3,6 +3,7 @@ import {
   ArrowRightLeft,
   ArrowUp,
   CheckCircle2,
+  Clock3,
   CloudSun,
   Compass,
   CornerUpLeft,
@@ -12,6 +13,7 @@ import {
   ExternalLink,
   Layers as LayersIcon,
   Loader2,
+  MapPinned,
   Menu,
   Navigation2,
   Radio,
@@ -23,8 +25,8 @@ import {
   X,
 } from "lucide-react";
 
-import { APP_TABS, FIGMA_DESIGN_URL, OVERLAY_TRANSITION, PANEL_TRANSITION, TAB_COPY } from "../config/safeRoute";
-import { formatCalories, formatDistance, getArrivalTime } from "../lib/route-utils";
+import { APP_TABS, CARD_TRANSITION, FIGMA_DESIGN_URL, OVERLAY_TRANSITION, PANEL_TRANSITION, TAB_COPY } from "../config/safeRoute";
+import { formatDistance, formatInstructionMeta, getArrivalTime } from "../lib/route-utils";
 import { cn } from "../lib/ui";
 
 function getHintIcon(title) {
@@ -38,6 +40,46 @@ function getHintIcon(title) {
   }
 
   return ArrowUp;
+}
+
+function topScoreReason(score) {
+  const reasons = Array.isArray(score?.reasons) ? score.reasons : [];
+  return reasons.find((reason) => reason?.code !== "safety_weight") ?? reasons[0] ?? null;
+}
+
+function formatScoreReason(reason) {
+  if (!reason) {
+    return null;
+  }
+
+  const labels = {
+    safety_weight: "вес графа",
+    walk_friendly_edges: "пешеходные участки",
+    cycleway_edges: "велополоса",
+    high_speed_or_lanes: "дорожная экспозиция",
+    narrow_width: "узко",
+    narrow_sidewalk_width: "узкий тротуар",
+    medium_width: "средняя ширина",
+    wide_width: "широкий участок",
+    bad_surface: "покрытие",
+    smooth_surface: "ровно",
+    missing_sidewalk: "нет тротуара",
+    curb_risk: "бордюры",
+    many_crossings: "переходы",
+    poor_lighting: "освещение",
+    steep_slope: "уклон",
+    low_traffic: "спокойная дорога",
+    traffic_intensity: "измеренный трафик",
+    road_exposure_proxy: "дорожная экспозиция",
+    micromobility_forbidden: "запрет СИМ",
+    forbidden_zone: "запретная зона",
+    micromobility_slow_zone: "зона ограничения",
+    telemetry_confidence: "телеметрия",
+    good_lighting: "освещение",
+    weather_sensitive_risk: "погода",
+  };
+
+  return labels[reason.code] ?? reason.code?.replaceAll("_", " ");
 }
 
 export function StatusBanner({ feedback, loading }) {
@@ -58,13 +100,14 @@ export function StatusBanner({ feedback, loading }) {
     neutral: "bg-surface-container-lowest/90 text-on-surface-variant border-outline-variant/40",
     loading: "bg-primary/10 text-primary border-primary/15",
   }[content.type ?? "neutral"];
+  const StatusIcon = loading ? Loader2 : content.type === "error" ? X : content.type === "info" ? CheckCircle2 : ShieldCheck;
 
   return (
     <motion.div
       key={content.message}
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 6 }}
+      initial={{ opacity: 0, y: 8, scale: 0.985 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 6, scale: 0.99 }}
       transition={OVERLAY_TRANSITION}
       className={cn(
         "mb-4 rounded-2xl border px-4 py-3 text-sm font-medium shadow-[0_10px_30px_rgba(0,88,188,0.06)]",
@@ -72,7 +115,7 @@ export function StatusBanner({ feedback, loading }) {
       )}
     >
       <div className="flex items-center gap-2">
-        {loading ? <Loader2 size={16} className="animate-spin" /> : null}
+        <StatusIcon size={16} className={loading ? "animate-spin" : ""} aria-hidden="true" />
         <span>{content.message}</span>
       </div>
     </motion.div>
@@ -127,7 +170,7 @@ export function SearchResults({ results, highlightedIndex, loading, query, onPic
                     onPick(result);
                   }}
                   className={cn(
-                    "block w-full px-4 py-3 text-left transition-colors",
+                    "search-result-row block w-full px-4 py-3 text-left transition-colors",
                     index === highlightedIndex ? "bg-primary/10" : "hover:bg-white/70",
                   )}
                 >
@@ -149,13 +192,12 @@ export function SearchResults({ results, highlightedIndex, loading, query, onPic
   );
 }
 
-export function AppTabRail({ activeTab, hasRoute, onSelect }) {
+export function AppTabRail({ activeTab, onSelect }) {
   return (
-    <nav className="app-tab-rail mb-6 grid grid-cols-5 gap-1 rounded-[1.35rem] p-1" aria-label="Разделы SafeRoute">
+    <nav className="app-tab-rail mb-5 grid grid-cols-3 gap-1 rounded-[1.15rem] p-1" aria-label="Разделы SafeRoute">
       {APP_TABS.map((tab) => {
         const Icon = tab.icon;
         const active = activeTab === tab.id;
-        const isNavigationPending = tab.id === "navigation" && !hasRoute;
 
         return (
           <button
@@ -163,18 +205,18 @@ export function AppTabRail({ activeTab, hasRoute, onSelect }) {
             type="button"
             onClick={() => onSelect(tab.id)}
             className={cn(
-              "relative isolate flex min-w-0 flex-col items-center justify-center gap-1 rounded-[1.05rem] px-1.5 py-2.5 text-[10px] font-semibold tracking-[-0.035em] transition-all duration-300 active:scale-[0.98] sm:text-[11px]",
+              "relative isolate flex min-w-0 flex-col items-center justify-center gap-1 rounded-[0.85rem] px-1.5 py-2.5 text-[10px] font-semibold transition-all duration-200 active:scale-[0.98] sm:text-[11px]",
               active ? "text-primary" : "text-on-surface-variant hover:text-on-surface",
-              isNavigationPending && !active ? "opacity-60" : "",
             )}
             aria-current={active ? "page" : undefined}
             aria-label={tab.label}
             title={tab.label}
+            data-motion-surface="tab"
           >
             {active ? (
               <motion.span
                 layoutId="active-app-tab"
-                className="absolute inset-0 -z-10 rounded-[1.05rem] bg-white/82 shadow-[0_10px_24px_rgba(0,88,188,0.1)]"
+                className="absolute inset-0 -z-10 rounded-[0.85rem] bg-white shadow-[0_8px_18px_rgba(20,36,56,0.08)]"
                 transition={PANEL_TRANSITION}
               />
             ) : null}
@@ -188,17 +230,17 @@ export function AppTabRail({ activeTab, hasRoute, onSelect }) {
 }
 
 export function PanelHeader({ activeTab, onClose }) {
-  const copy = TAB_COPY[activeTab] ?? TAB_COPY.routes;
+  const copy = TAB_COPY[activeTab] ?? TAB_COPY.route;
 
   return (
-    <div className="mb-5 flex items-start justify-between gap-3">
+    <div className="panel-header mb-5 flex items-start justify-between gap-3">
       <div>
         <motion.h1
           key={copy.title}
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={OVERLAY_TRANSITION}
-          className="text-[1.55rem] font-black tracking-[-0.045em] text-on-surface"
+          className="panel-title text-on-surface"
         >
           {copy.title}
         </motion.h1>
@@ -207,7 +249,7 @@ export function PanelHeader({ activeTab, onClose }) {
           initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ ...OVERLAY_TRANSITION, delay: 0.03 }}
-          className="mt-1 max-w-[21rem] text-sm font-medium leading-5 text-on-surface-variant"
+          className="panel-subtitle mt-1 max-w-[21rem] text-on-surface-variant"
         >
           {copy.subtitle}
         </motion.p>
@@ -215,7 +257,7 @@ export function PanelHeader({ activeTab, onClose }) {
       <button
         type="button"
         onClick={onClose}
-        className="inline-flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition-all hover:bg-white/55 md:hidden"
+        className="icon-button inline-flex md:hidden"
         aria-label="Закрыть панель"
       >
         <X size={18} />
@@ -224,30 +266,63 @@ export function PanelHeader({ activeTab, onClose }) {
   );
 }
 
-export function EndpointStack({ origin, destination, onSwap }) {
+function EndpointRow({ endpoint, label, value, tone, active, onSelect }) {
+  const isOrigin = endpoint === "origin";
+
   return (
-    <div className="endpoint-stack relative space-y-3">
-      <div className="absolute bottom-5 left-4 top-5 w-px bg-outline-variant/30" />
-      <div className="endpoint-row relative flex items-center rounded-[1.35rem] px-4 py-4">
-        <div className="mr-3 h-3 w-3 rounded-full bg-primary shadow-[0_0_10px_rgba(0,88,188,0.38)]" />
-        <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-outline">Откуда</div>
-          <div className="truncate text-sm font-semibold text-on-surface">{origin.label}</div>
-        </div>
-      </div>
-      <div className="endpoint-row relative flex items-center rounded-[1.35rem] px-4 py-4">
-        <div className="mr-3 h-3 w-3 rounded-[4px] bg-error" />
-        <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-outline">Куда</div>
-          <div className="truncate text-sm font-semibold text-on-surface">
-            {destination?.label ?? "Выберите точку назначения"}
-          </div>
-        </div>
-      </div>
+    <button
+      type="button"
+      onClick={() => onSelect(endpoint)}
+      className={cn(
+        "endpoint-row endpoint-row-action relative flex w-full items-center rounded-[1rem] px-4 py-4 text-left transition-all duration-200",
+        active ? "endpoint-row-active" : "hover:bg-white",
+      )}
+      aria-pressed={active}
+      aria-label={`${label}: ${value}`}
+    >
+      <span className="endpoint-marker-wrap mr-3">
+        <span
+          className={cn(
+            "endpoint-marker",
+            isOrigin ? "rounded-full bg-primary shadow-[0_0_0_5px_rgba(0,112,235,0.12)]" : "rounded-[5px] bg-error shadow-[0_0_0_5px_rgba(186,26,26,0.1)]",
+          )}
+        />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="endpoint-label block text-outline">{label}</span>
+        <span className="mt-0.5 block truncate text-sm font-semibold text-on-surface">{value}</span>
+      <span className={cn("mt-1 block text-xs font-medium", active ? "text-primary" : "text-outline")}>
+          {active ? "Введите адрес сверху или поставьте точку на карте" : tone}
+        </span>
+      </span>
+    </button>
+  );
+}
+
+export function EndpointStack({ origin, destination, activeEndpoint = "destination", onSelectEndpoint, onSwap }) {
+  return (
+    <div className="endpoint-stack relative space-y-2">
+      <div className="endpoint-rail" aria-hidden="true" />
+      <EndpointRow
+        endpoint="origin"
+        label="Откуда"
+        value={origin.label}
+        tone="Нажмите, чтобы изменить старт"
+        active={activeEndpoint === "origin"}
+        onSelect={onSelectEndpoint}
+      />
+      <EndpointRow
+        endpoint="destination"
+        label="Куда"
+        value={destination?.label ?? "Выберите точку назначения"}
+        tone="Нажмите, чтобы выбрать финиш"
+        active={activeEndpoint === "destination"}
+        onSelect={onSelectEndpoint}
+      />
       <button
         type="button"
         onClick={onSwap}
-        className="absolute right-2 top-1/2 inline-flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/88 text-on-surface-variant shadow-[0_10px_24px_rgba(0,0,0,0.08)] transition-all hover:bg-white active:scale-95"
+        className="icon-button absolute right-2 top-1/2 -translate-y-1/2 bg-white"
         aria-label="Поменять точки местами"
       >
         <ArrowRightLeft size={18} />
@@ -262,7 +337,7 @@ export function EmptyState({ title, children, icon: Icon = Compass }) {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={OVERLAY_TRANSITION}
-      className="quiet-panel rounded-[1.55rem] px-5 py-5 text-sm text-on-surface-variant"
+      className="material-card rounded-[1rem] px-5 py-5 text-sm text-on-surface-variant"
     >
       <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-[1.05rem] bg-primary/10 text-primary">
         <Icon size={20} />
@@ -278,7 +353,7 @@ export function ToggleRow({ icon: Icon, title, subtitle, enabled, onToggle }) {
     <button
       type="button"
       onClick={onToggle}
-      className="toggle-row group flex w-full items-center justify-between gap-4 rounded-[1.4rem] px-4 py-4 text-left transition-all hover:bg-white/58 active:scale-[0.99]"
+      className="native-toggle-row group flex w-full items-center justify-between gap-4 rounded-[0.9rem] px-4 py-3.5 text-left transition-all hover:bg-white active:scale-[0.99]"
       aria-pressed={enabled}
     >
       <div className="flex min-w-0 items-center gap-3">
@@ -304,16 +379,16 @@ export function ServiceHealthList({ health, loading, onRefresh }) {
 
   return (
     <div className="space-y-4">
-      <div className="quiet-panel rounded-[1.55rem] px-5 py-5">
+      <div className="material-card rounded-[1rem] px-5 py-5">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-outline">Runtime health</div>
+            <div className="native-section-eyebrow">Сервисы</div>
             <div className="mt-2 text-xl font-black tracking-tight text-on-surface">{statusText}</div>
           </div>
           <button
             type="button"
             onClick={onRefresh}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/70 text-on-surface-variant transition-all hover:bg-white active:scale-95"
+            className="icon-button bg-white"
             aria-label="Обновить статус сервисов"
           >
             {loading ? <Loader2 size={18} className="animate-spin text-primary" /> : <Wifi size={18} />}
@@ -325,10 +400,10 @@ export function ServiceHealthList({ health, loading, onRefresh }) {
           const service = services[name];
           const isOk = service?.status === "ok";
           return (
-            <div key={name} className="service-row flex items-center justify-between gap-3 rounded-[1.2rem] px-4 py-3">
+            <div key={name} className="service-row flex items-center justify-between gap-3 rounded-[0.9rem] px-4 py-3">
               <div>
                 <div className="text-sm font-bold capitalize text-on-surface">{name}</div>
-                <div className="mt-0.5 text-xs font-medium text-outline">{service?.detail || service?.status || "not checked"}</div>
+                <div className="mt-0.5 text-xs font-medium text-outline">{service?.detail || service?.status || "не проверено"}</div>
               </div>
               <span className={cn("status-dot", isOk ? "status-dot-ok" : "status-dot-warn")} />
             </div>
@@ -340,7 +415,12 @@ export function ServiceHealthList({ health, loading, onRefresh }) {
 }
 
 export function RouteCard({ route, index, isActive, onSelect }) {
-  const calories = formatCalories(route.properties?.calories_burn);
+  const score = route.properties?.score;
+  const hasSafetyScore = score?.total != null;
+  const scoreReason = topScoreReason(score);
+  const scoreReasonLabel = formatScoreReason(scoreReason);
+  const scoreTotal = typeof score?.total === "number" ? score.total : route.properties?.safety_index;
+  const scoreTone = scoreTotal >= 85 ? "excellent" : scoreTotal >= 70 ? "good" : "caution";
 
   return (
     <motion.button
@@ -350,35 +430,53 @@ export function RouteCard({ route, index, isActive, onSelect }) {
       animate={{
         opacity: 1,
         x: 0,
-        transition: { delay: index * 0.04, duration: 0.26, ease: [0.22, 1, 0.36, 1] },
+        transition: { ...CARD_TRANSITION, delay: index * 0.035 },
       }}
+      whileHover={{ y: -2 }}
+      whileTap={{ scale: 0.988 }}
+      transition={CARD_TRANSITION}
       onClick={() => onSelect(route.id)}
+      aria-pressed={isActive}
       className={cn(
-        "route-card relative w-full overflow-hidden rounded-[1.7rem] px-4 py-4 text-left",
-        isActive ? "route-card-active bg-white/92 shadow-[0_18px_40px_rgba(0,88,188,0.14)]" : "bg-white/58 hover:bg-white/72",
+        "route-card material-card relative w-full overflow-hidden rounded-[1rem] px-4 py-4 text-left",
+        isActive ? "route-card-active" : "hover:bg-white",
       )}
     >
       <AnimatePresence>
-        {isActive ? <motion.div layoutId="route-beacon" className="absolute inset-y-4 left-0 w-1 rounded-full bg-primary" /> : null}
+        {isActive ? <motion.div layoutId="route-beacon" className="absolute inset-y-4 left-0 w-1 rounded-full bg-primary" transition={CARD_TRANSITION} /> : null}
       </AnimatePresence>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className={cn("text-xl font-black tracking-tight", isActive ? "text-on-surface" : "text-on-surface-variant")}>
-            {route.properties?.estimated_mins ?? "--"} мин
-          </div>
-          <div className={cn("mt-1 text-xs font-semibold uppercase tracking-[0.18em]", isActive ? "text-primary" : "text-outline")}>
-            {route.label}
+      <div className="route-card-head">
+        <div className="route-card-title-wrap">
+          <span className={cn("route-number", isActive ? "route-number-active" : "")}>{index + 1}</span>
+          <div className="min-w-0">
+            <div className="route-title">{route.label}</div>
+            {scoreReasonLabel ? <div className="route-top-reason">{scoreReasonLabel}</div> : null}
           </div>
         </div>
-        <div className="text-right">
-          <div className="text-sm font-semibold text-on-surface-variant">{formatDistance(route.properties?.distance_m)}</div>
-          <div className="mt-2 text-xs text-outline">Safety {route.properties?.safety_index ?? "--"}%</div>
-        </div>
+
+        {hasSafetyScore ? (
+          <div className={cn("route-score-pill", `route-score-pill-${scoreTone}`)}>
+            <span>{scoreTotal ?? "--"}</span>
+            <small>/100</small>
+          </div>
+        ) : null}
       </div>
-      <p className={cn("mt-2 text-sm", isActive ? "text-on-surface-variant" : "text-outline")}>{route.subtitle}</p>
-      <div className="mt-3 flex items-center gap-3 text-xs text-on-surface-variant">
-        <span>{route.properties?.source?.includes("valhalla") ? "Turn-by-turn" : "SafeRoute safety graph"}</span>
-        {calories ? <span>{calories}</span> : null}
+
+      <div className="route-card-metrics">
+        <span>
+          <Clock3 size={14} aria-hidden="true" />
+          {route.properties?.estimated_mins ?? "--"} мин
+        </span>
+        <span>
+          <MapPinned size={14} aria-hidden="true" />
+          {formatDistance(route.properties?.distance_m)}
+        </span>
+      </div>
+
+      <p className="route-card-description">{route.subtitle}</p>
+
+      <div className="route-card-footer">
+        <div className="route-score-copy">{hasSafetyScore ? `Оценка ${scoreTotal}/100` : "Оценка появится после расчёта"}</div>
       </div>
     </motion.button>
   );
@@ -389,22 +487,22 @@ export function NavigationInstructionCard({ hint, gpsStatus, rerouting, onOpenPl
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: -16 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8 }}
+      initial={{ opacity: 0, y: -16, scale: 0.985 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -8, scale: 0.99 }}
       transition={OVERLAY_TRANSITION}
-      className="fixed left-0 right-0 top-0 z-50 flex justify-center px-4 pt-6 md:pt-8"
+      className="top-instruction-shell pointer-events-none fixed left-0 right-0 top-0 z-50 flex justify-center px-4 pt-6 md:pt-8"
     >
-      <div className="top-instruction pointer-events-auto flex w-full max-w-2xl items-center gap-4 rounded-[1.75rem] px-4 py-4">
+      <div className="top-instruction pointer-events-auto flex w-full max-w-2xl items-center gap-4 rounded-[1.5rem] px-4 py-4">
         <button
           type="button"
           onClick={onOpenPlanner}
           className="inline-flex h-12 w-12 items-center justify-center rounded-full text-on-surface transition-all hover:bg-white/55 active:scale-95"
-          aria-label="Открыть маршруты"
+          aria-label="Открыть навигационное меню"
         >
           <Menu size={20} />
         </button>
-        <div className="inline-flex h-16 w-16 items-center justify-center rounded-[1.4rem] soul-gradient text-on-primary shadow-[0_14px_30px_rgba(0,88,188,0.28)]">
+        <div className="inline-flex h-16 w-16 items-center justify-center rounded-[1rem] soul-gradient text-on-primary shadow-[0_12px_26px_rgba(0,88,188,0.2)]">
           {rerouting ? <Loader2 size={28} className="animate-spin" /> : <Icon size={28} />}
         </div>
         <div className="min-w-0 flex-1">
@@ -422,32 +520,40 @@ export function NavigationInstructionCard({ hint, gpsStatus, rerouting, onOpenPl
 
 export function TripSheet({ route, livePosition, activeInstructionIndex, onShowPlanner, onReset }) {
   const instructions = route.properties?.instructions ?? [];
+  const activeInstruction = instructions[activeInstructionIndex] ?? instructions[0] ?? null;
+  const instructionMeta = activeInstruction ? formatInstructionMeta(activeInstruction) : null;
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 22 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 14 }}
+      initial={{ opacity: 0, y: 22, scale: 0.985 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 14, scale: 0.99 }}
       transition={OVERLAY_TRANSITION}
       className="fixed bottom-0 left-0 right-0 z-50 flex justify-center px-4 pb-6 md:pb-8"
     >
-      <div className="trip-sheet pointer-events-auto flex w-full max-w-3xl items-center justify-between gap-4 rounded-[1.8rem] px-5 py-5">
-        <div className="min-w-0">
-          <div className="text-3xl font-black tracking-tight text-primary">{getArrivalTime(route.properties?.estimated_mins ?? 0)}</div>
-          <div className="mt-1 text-sm font-medium text-on-surface-variant md:text-base">
-            {route.properties?.estimated_mins ?? "--"} мин • {formatDistance(route.properties?.distance_m)}
+      <div className="trip-sheet pointer-events-auto grid w-full max-w-3xl grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-[1.5rem] px-5 py-5">
+        <div className="trip-sheet-copy min-w-0">
+          <div className="trip-sheet-time text-3xl font-black tracking-tight text-primary">{getArrivalTime(route.properties?.estimated_mins ?? 0)}</div>
+          <div className="trip-sheet-meta mt-1 text-sm font-medium text-on-surface-variant md:text-base">
+            Осталось {route.properties?.estimated_mins ?? "--"} мин • {formatDistance(route.properties?.distance_m)}
           </div>
-          <div className="mt-1 text-xs font-medium text-outline">
-            Манёвр {Math.min(activeInstructionIndex + 1, instructions.length || 1)} из {instructions.length || 1}
-            {livePosition?.accuracy ? ` • GPS ±${Math.round(livePosition.accuracy)} м` : ""}
-          </div>
+          {activeInstruction ? (
+            <div className="trip-sheet-next mt-3">
+              <div className="truncate text-sm font-black text-on-surface">{activeInstruction.text}</div>
+              <div className="mt-1 text-xs font-medium text-outline">
+                {instructionMeta}
+                {` • Шаг ${Math.min(activeInstructionIndex + 1, instructions.length || 1)} из ${instructions.length || 1}`}
+                {livePosition?.accuracy ? ` • GPS ±${Math.round(livePosition.accuracy)} м` : ""}
+              </div>
+            </div>
+          ) : null}
         </div>
-        <div className="flex shrink-0 items-center gap-3">
+        <div className="trip-sheet-actions flex shrink-0 items-center gap-3">
           <button
             type="button"
             onClick={onShowPlanner}
             className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-white/68 text-on-surface shadow-[0_6px_18px_rgba(0,0,0,0.06)] transition-all hover:bg-white/82 active:scale-95"
-            aria-label="Показать варианты маршрута"
+            aria-label="Показать навигационное меню"
           >
             <Route size={22} />
           </button>
@@ -464,19 +570,25 @@ export function TripSheet({ route, livePosition, activeInstructionIndex, onShowP
   );
 }
 
-export function WeatherChip() {
+export function WeatherChip({ route }) {
+  const weather = route?.properties?.score?.data_sources?.weather;
+  const weatherActive = Boolean(weather?.active);
+  const Icon = weatherActive ? CloudSun : ShieldCheck;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: 0.16 }}
-      className="fixed bottom-6 right-6 z-40"
+      transition={{ ...OVERLAY_TRANSITION, delay: 0.12 }}
+      className="pointer-events-none fixed bottom-4 right-4 z-30 hidden sm:block md:bottom-6 md:right-6 md:z-40"
     >
-      <div className="glass-panel pointer-events-none flex items-center gap-4 rounded-[1.6rem] px-4 py-3 shadow-[0_18px_44px_rgba(0,88,188,0.1)]">
-        <CloudSun className="text-primary" size={28} />
+      <div className="material-toolbar pointer-events-none flex items-center gap-3 rounded-[1.25rem] px-4 py-3">
+        <Icon className="text-primary" size={22} />
         <div>
-          <div className="text-xl font-black leading-none text-on-surface">Москва</div>
-          <div className="mt-1 text-xs font-medium text-on-surface-variant">Статус маршрута</div>
+          <div className="text-base font-black leading-none text-on-surface">{weatherActive ? "Погода" : "Публичная бета"}</div>
+          <div className="mt-1 text-xs font-medium text-on-surface-variant">
+            {weatherActive ? "Open-Meteo активен" : "OSM и переходы"}
+          </div>
         </div>
       </div>
     </motion.div>

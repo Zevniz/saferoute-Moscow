@@ -1,0 +1,49 @@
+{
+  "type": "FeatureCollection",
+  "name": "SafeRoute test-only micromobility zones",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "test-forbidden-zone",
+      "properties": {
+        "zone_type": "forbidden",
+        "confidence": 0.95,
+        "test_only": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [37.6100, 55.7500],
+            [37.6110, 55.7500],
+            [37.6110, 55.7510],
+            [37.6100, 55.7510],
+            [37.6100, 55.7500]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "test-slow-zone",
+      "properties": {
+        "zone_type": "slow",
+        "zone_speed_limit_kmh": 15,
+        "confidence": 0.9,
+        "test_only": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [37.6200, 55.7600],
+            [37.6210, 55.7600],
+            [37.6210, 55.7610],
+            [37.6200, 55.7610],
+            [37.6200, 55.7600]
+          ]
+        ]
+      }
+    }
+  ]
+}

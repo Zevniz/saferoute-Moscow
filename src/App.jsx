@@ -1,6 +1,6 @@
 import React, { startTransition, useDeferredValue, useEffect, useRef, useState } from "react";
 import { AnimatePresence, LayoutGroup, MotionConfig, animate, motion } from "framer-motion";
-import Map, { Layer, Marker, NavigationControl, Source } from "react-map-gl/maplibre";
+import Map, { Layer, Marker, Source } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
 import {
   CheckCircle2,
@@ -17,37 +17,41 @@ import {
   Route,
   Search,
   ShieldCheck,
-  SlidersHorizontal,
-  User,
 } from "lucide-react";
 import {
+  APP_TABS,
   CURRENT_LOCATION,
   DEFAULT_LAYER_OPTIONS,
   INITIAL_VIEW_STATE,
   MAP_STYLE,
+  PAGE_TRANSITION,
   PANEL_TRANSITION,
   PROFILE_OPTIONS,
   SCORING_MODE_OPTIONS,
+  SHEET_TRANSITION,
 } from "./config/safeRoute";
 import {
-  AppTabRail,
   EmptyState,
   EndpointStack,
-  ModeButton,
   NavigationInstructionCard,
   PanelHeader,
   RouteCard,
   SearchResults,
-  ServiceHealthList,
   StatusBanner,
   ToggleRow,
   TripSheet,
   WeatherChip,
 } from "./components/AppPanels";
+import { DataCoverageNote } from "./components/DataLayersStatus";
+import { ErrorRecoveryCard, RouteEmptyState, RouteLoadingState, SearchEmptyState } from "./components/PlannerStates";
+import { SegmentedControl } from "./components/RouteControls";
+import { SafetyScorePanel } from "./components/SafetyScore";
+import { NativeSection, StatusRow } from "./components/SystemList";
 import { useHealth } from "./hooks/useHealth";
 import { useSidewalkCells } from "./hooks/useSidewalkCells";
 import {
   formatDistance,
+  formatInstructionMeta,
   getDefaultRouteId,
   getGeometryBounds,
   getInstructionPresentation,
@@ -61,30 +65,37 @@ import { useSearch } from "./hooks/useSearch";
 
 export default function App() {
   const mapRef = useRef(null);
+  const searchInputRef = useRef(null);
+  const commandNavRef = useRef(null);
   const requestIdRef = useRef(0);
 
   const [query, setQuery] = useState("");
   const [origin, setOrigin] = useState(CURRENT_LOCATION);
   const [destination, setDestination] = useState(null);
+  const [activeEndpoint, setActiveEndpoint] = useState("destination");
   const [profile, setProfile] = useState("walk");
   const [routeMode, setRouteMode] = useState("safest");
   const [plannerStage, setPlannerStage] = useState("idle");
-  const [activeTab, setActiveTab] = useState("search");
+  const [activeTab, setActiveTab] = useState("route");
   const [routes, setRoutes] = useState([]);
   const [selectedRouteId, setSelectedRouteId] = useState(null);
   const [feedback, setFeedback] = useState(null);
-  const [panelOpen, setPanelOpen] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(true);
+  const [sectionMenuOpen, setSectionMenuOpen] = useState(false);
   const [layerOptions, setLayerOptions] = useState(DEFAULT_LAYER_OPTIONS);
   const [routeProgress, setRouteProgress] = useState(0);
   const [searchResults, setSearchResults] = useState([]);
   const [highlightedResultIndex, setHighlightedResultIndex] = useState(0);
   const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false);
   const { health, loading: isHealthLoading, loadHealth } = useHealth();
+  const postgresReady = health?.services?.postgres?.status === "ok";
+  const sidewalkCellsAwaitingHealth = layerOptions.sidewalkQuality && !health;
+  const sidewalkCellsBlocked = layerOptions.sidewalkQuality && health && !postgresReady;
   const {
     cells: sidewalkCells,
     loading: sidewalkCellsLoading,
     error: sidewalkCellsError,
-  } = useSidewalkCells({ enabled: layerOptions.sidewalkQuality, mapRef });
+  } = useSidewalkCells({ enabled: layerOptions.sidewalkQuality && postgresReady, mapRef });
   const { loading: isSearching, search } = useSearch();
   const { loading: isRouting, loadRoutes } = useRoutes();
 
@@ -121,10 +132,42 @@ export default function App() {
   const primaryActionBusy = isSearching || isRouting;
   const plannerVisible = plannerStage !== "navigating" || panelOpen;
   const commandBarVisible = plannerStage !== "navigating";
+  const activeSearchPoint = activeEndpoint === "origin" ? origin : destination;
+  const searchPlaceholder = activeEndpoint === "origin" ? "Откуда начнём маршрут?" : "Куда едем по Москве?";
+  const searchAriaLabel = activeEndpoint === "origin" ? "Введите точку отправления" : "Введите точку назначения";
+  const mobileSheetState = selectedRoute && activeTab === "route" ? "medium" : "expanded";
+  const activeAppTab = APP_TABS.find((tab) => tab.id === activeTab) ?? APP_TABS[0];
 
   useEffect(() => {
     loadHealth();
   }, []);
+
+  useEffect(() => {
+    if (!sectionMenuOpen) {
+      return undefined;
+    }
+
+    function handlePointerDown(event) {
+      if (commandNavRef.current?.contains(event.target)) {
+        return;
+      }
+      setSectionMenuOpen(false);
+    }
+
+    function handleEscape(event) {
+      if (event.key === "Escape") {
+        setSectionMenuOpen(false);
+      }
+    }
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [sectionMenuOpen]);
 
   useEffect(() => {
     if (!selectedRoute) {
@@ -134,8 +177,8 @@ export default function App() {
 
     setRouteProgress(0);
     const controls = animate(0, 1, {
-      duration: 0.82,
-      ease: [0.22, 1, 0.36, 1],
+      duration: 0.72,
+      ease: [0.2, 0, 0, 1],
       onUpdate: (value) => setRouteProgress(value),
     });
 
@@ -155,7 +198,7 @@ export default function App() {
     const timeoutId = window.setTimeout(() => {
       mapRef.current?.fitBounds(bounds, {
         padding: getViewportPadding(plannerStage),
-        duration: 1600,
+        duration: 1250,
         maxZoom: plannerStage === "navigating" ? 14.8 : 14.2,
       });
     }, 120);
@@ -165,7 +208,7 @@ export default function App() {
 
   useEffect(() => {
     const trimmedQuery = deferredQuery.trim();
-    if (!plannerVisible || trimmedQuery.length < 2 || trimmedQuery === destination?.label) {
+    if (!plannerVisible || trimmedQuery.length < 2 || trimmedQuery === activeSearchPoint?.label) {
       setSearchResults([]);
       setIsAutocompleteOpen(false);
       return undefined;
@@ -196,7 +239,7 @@ export default function App() {
       controller.abort();
       window.clearTimeout(timeoutId);
     };
-  }, [deferredQuery, destination?.label, plannerVisible, search]);
+  }, [activeSearchPoint?.label, deferredQuery, plannerVisible, search]);
 
   async function requestRoutes({
     nextProfile = profile,
@@ -253,7 +296,7 @@ export default function App() {
         setRoutes(normalized.routes);
         setSelectedRouteId(defaultRouteId);
         setPlannerStage(successStage);
-        setActiveTab(successStage === "navigating" ? "navigation" : "routes");
+        setActiveTab("route");
         setFeedback(null);
       });
     } catch (error) {
@@ -275,35 +318,106 @@ export default function App() {
     }
   }
 
-  async function chooseDestination(result) {
-    const nextDestination = {
+  function focusSearchField() {
+    window.requestAnimationFrame(() => {
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    });
+  }
+
+  function formatMapPointLabel(endpoint, point) {
+    const prefix = endpoint === "origin" ? "Старт на карте" : "Финиш на карте";
+    return `${prefix}: ${point.lat.toFixed(5)}, ${point.lon.toFixed(5)}`;
+  }
+
+  async function applyEndpointPoint(endpoint, point, { flyTo = true } = {}) {
+    const nextOrigin = endpoint === "origin" ? point : origin;
+    const nextDestination = endpoint === "destination" ? point : destination;
+
+    startTransition(() => {
+      if (endpoint === "origin") {
+        setOrigin(point);
+      } else {
+        setDestination(point);
+      }
+      setQuery(point.label);
+      setSearchResults([]);
+      setIsAutocompleteOpen(false);
+      setPanelOpen(true);
+      setActiveTab("route");
+      setSectionMenuOpen(false);
+      setFeedback(null);
+      if (!nextDestination) {
+        setRoutes([]);
+        setSelectedRouteId(null);
+        setPlannerStage("idle");
+      }
+    });
+
+    if (flyTo) {
+      mapRef.current?.flyTo({
+        center: [point.lon, point.lat],
+        zoom: 14.2,
+        duration: 1100,
+      });
+    }
+
+    if (nextDestination) {
+      await requestRoutes({
+        nextProfile: profile,
+        nextOrigin,
+        nextDestination,
+      });
+    }
+  }
+
+  async function chooseSearchResult(result) {
+    const nextPoint = {
       lat: Number(result.lat),
       lon: Number(result.lon),
       label: buildDestinationLabel(result, query.trim()),
       kind: result.kind,
     };
 
-    startTransition(() => {
-      setDestination(nextDestination);
-      setQuery(nextDestination.label);
-      setSearchResults([]);
-      setIsAutocompleteOpen(false);
-      setPanelOpen(true);
-      setActiveTab("routes");
-      setFeedback(null);
-    });
+    await applyEndpointPoint(activeEndpoint, nextPoint);
+  }
 
-    mapRef.current?.flyTo({
-      center: [nextDestination.lon, nextDestination.lat],
-      zoom: 14.2,
-      duration: 1450,
+  function handleEndpointSelect(endpoint) {
+    setActiveEndpoint(endpoint);
+    setPanelOpen(true);
+    setSectionMenuOpen(false);
+    setActiveTab("route");
+    setQuery(endpoint === "origin" ? origin.label : destination?.label ?? "");
+    setSearchResults([]);
+    setIsAutocompleteOpen(false);
+    setFeedback({
+      type: "neutral",
+      message:
+        endpoint === "origin"
+          ? "Введите старт в верхней строке или кликните точку на карте."
+          : "Введите финиш в верхней строке или кликните точку на карте.",
     });
+    focusSearchField();
+  }
 
-    await requestRoutes({
-      nextProfile: profile,
-      nextOrigin: origin,
-      nextDestination,
-    });
+  async function handleMapClick(event) {
+    if (plannerStage === "navigating") {
+      return;
+    }
+
+    const lngLat = event.lngLat;
+    if (!lngLat) {
+      return;
+    }
+
+    const nextPoint = {
+      lat: Number(lngLat.lat),
+      lon: Number(lngLat.lng),
+      label: formatMapPointLabel(activeEndpoint, { lat: Number(lngLat.lat), lon: Number(lngLat.lng) }),
+      kind: "map",
+    };
+
+    await applyEndpointPoint(activeEndpoint, nextPoint, { flyTo: false });
   }
 
   async function handleSearch(event) {
@@ -322,14 +436,15 @@ export default function App() {
 
     setPanelOpen(true);
     startTransition(() => {
-      setActiveTab("search");
+      setActiveTab("route");
+      setSectionMenuOpen(false);
       setFeedback(null);
     });
 
     try {
       const result = searchResults[highlightedResultIndex] ?? searchResults[0];
       if (result) {
-        await chooseDestination(result);
+        await chooseSearchResult(result);
         return;
       }
 
@@ -337,7 +452,7 @@ export default function App() {
       if (!results.length) {
         throw new Error("Ничего не найдено. Попробуйте другой адрес или ориентир.");
       }
-      await chooseDestination(results[0]);
+      await chooseSearchResult(results[0]);
     } catch (error) {
       startTransition(() => {
         setPlannerStage("idle");
@@ -387,6 +502,7 @@ export default function App() {
       setOrigin(nextOrigin);
       setDestination(nextDestination);
       setQuery(nextDestination.label);
+      setActiveEndpoint("destination");
       setFeedback(null);
     });
 
@@ -404,7 +520,7 @@ export default function App() {
 
     startTransition(() => {
       setProfile(nextProfile);
-      setActiveTab("routes");
+      setActiveTab("route");
       setFeedback(null);
     });
 
@@ -424,7 +540,7 @@ export default function App() {
 
     startTransition(() => {
       setRouteMode(nextMode);
-      setActiveTab("routes");
+      setActiveTab("route");
       setFeedback(null);
     });
 
@@ -455,8 +571,9 @@ export default function App() {
 
     startTransition(() => {
       setPlannerStage("navigating");
-      setActiveTab("navigation");
+      setActiveTab("route");
       setPanelOpen(false);
+      setSectionMenuOpen(false);
       setFeedback(null);
       setActiveInstructionIndex(0);
     });
@@ -467,15 +584,26 @@ export default function App() {
       setRoutes([]);
       setSelectedRouteId(null);
       setPlannerStage("idle");
-      setActiveTab("search");
+      setActiveTab("route");
+      setSectionMenuOpen(false);
       setFeedback(null);
     });
   }
 
   function handleShowPlanner() {
     startTransition(() => {
-      setActiveTab("routes");
+      setActiveTab("route");
       setPanelOpen(true);
+      setSectionMenuOpen(false);
+    });
+  }
+
+  function handleShowRouteOptions() {
+    startTransition(() => {
+      setPlannerStage("planned");
+      setActiveTab("route");
+      setPanelOpen(true);
+      setSectionMenuOpen(false);
     });
   }
 
@@ -483,14 +611,98 @@ export default function App() {
     startTransition(() => {
       setActiveTab(tabId);
       setPanelOpen(true);
-      if (tabId === "navigation" && selectedRoute && plannerStage === "idle") {
-        setPlannerStage("planned");
-      }
+      setSectionMenuOpen(false);
     });
 
-    if (tabId === "settings") {
+    if (tabId === "about") {
       loadHealth();
     }
+  }
+
+  function handleSectionMenuToggle() {
+    startTransition(() => {
+      setPanelOpen(true);
+      setSectionMenuOpen((open) => !open);
+    });
+  }
+
+  function handleMapZoom(delta) {
+    const map = mapRef.current?.getMap?.() ?? mapRef.current;
+    if (!map) {
+      return;
+    }
+
+    if (delta > 0 && typeof map.zoomIn === "function") {
+      map.zoomIn({ duration: 220 });
+      return;
+    }
+
+    if (delta < 0 && typeof map.zoomOut === "function") {
+      map.zoomOut({ duration: 220 });
+      return;
+    }
+
+    const currentZoom = typeof map.getZoom === "function" ? map.getZoom() : INITIAL_VIEW_STATE.zoom;
+    map.zoomTo?.(currentZoom + delta, { duration: 220 });
+  }
+
+  function renderSectionMenu() {
+    return (
+      <AnimatePresence>
+        {sectionMenuOpen ? (
+          <motion.div
+            className="section-menu material-panel"
+            role="dialog"
+            aria-label="Меню разделов SafeRoute"
+            initial={{ opacity: 0, y: -8, scale: 0.975 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.985 }}
+            transition={PAGE_TRANSITION}
+          >
+            <div className="section-menu-header">
+              <div>
+                <p className="section-menu-kicker">Разделы</p>
+                <p className="section-menu-title">Что открыть?</p>
+              </div>
+              <span className="section-menu-current">{activeAppTab.shortLabel ?? activeAppTab.label}</span>
+            </div>
+            <nav className="section-menu-list" aria-label="Разделы SafeRoute">
+              {APP_TABS.map((tab) => {
+                const Icon = tab.icon;
+                const active = activeTab === tab.id;
+
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => handleTabSelect(tab.id)}
+                    className={cn("section-menu-item", active && "section-menu-item-active")}
+                    aria-current={active ? "page" : undefined}
+                  >
+                    <span className="section-menu-item-icon" aria-hidden="true">
+                      <Icon size={18} />
+                    </span>
+                    <span className="section-menu-item-copy">
+                      <span className="section-menu-item-title">{tab.label}</span>
+                      <span className="section-menu-item-subtitle">
+                        {tab.id === "route"
+                          ? "Поиск, режим и варианты пути"
+                          : tab.id === "map"
+                            ? "Видимость маршрута и точек"
+                            : "Бета, источники и честные ограничения"}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </nav>
+            <p className="section-menu-note">
+              Главный экран остаётся про маршрут. Служебные данные и настройки карты живут здесь, чтобы не перегружать поиск.
+            </p>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    );
   }
 
   function toggleLayerOption(optionId) {
@@ -500,12 +712,245 @@ export default function App() {
     }));
   }
 
+  function renderAttributionLinks(className = "") {
+    return (
+      <div className={cn("text-[11px] font-semibold text-on-surface-variant", className)} aria-label="Атрибуция карты и данных">
+        <a
+          className="text-primary underline-offset-2 hover:underline"
+          href="https://www.openstreetmap.org/copyright"
+          target="_blank"
+          rel="noreferrer"
+        >
+          © OpenStreetMap contributors
+        </a>
+        <span className="mx-1 text-outline">·</span>
+        <a
+          className="text-primary underline-offset-2 hover:underline"
+          href="https://carto.com/attributions"
+          target="_blank"
+          rel="noreferrer"
+        >
+          CARTO
+        </a>
+      </div>
+    );
+  }
+
+  function renderRouteEndpointSummary() {
+    if (!selectedRoute || !destination) {
+      return (
+        <EndpointStack
+          origin={origin}
+          destination={destination}
+          activeEndpoint={activeEndpoint}
+          onSelectEndpoint={handleEndpointSelect}
+          onSwap={handleSwap}
+        />
+      );
+    }
+
+    return (
+      <div className="route-trip-summary">
+        <div className="route-trip-summary-main">
+          <div className="route-trip-point">
+            <span className="route-trip-dot route-trip-dot-origin" aria-hidden="true" />
+            <span className="truncate">{origin.label}</span>
+          </div>
+          <div className="route-trip-point">
+            <span className="route-trip-dot route-trip-dot-destination" aria-hidden="true" />
+            <span className="truncate">{destination.label}</span>
+          </div>
+        </div>
+        <div className="route-trip-actions">
+          <button type="button" onClick={() => handleEndpointSelect("origin")} className="route-trip-edit">
+            Старт
+          </button>
+          <button type="button" onClick={() => handleEndpointSelect("destination")} className="route-trip-edit">
+            Финиш
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   function renderPanelContent() {
-    if (activeTab === "search") {
+    if (activeTab === "map") {
+      return (
+        <div className="min-h-0 flex-1 overflow-y-auto pr-2">
+          <div className="space-y-5">
+            <NativeSection title="На карте" eyebrow="Отображение">
+              <ToggleRow
+                icon={layerOptions.pins ? Eye : EyeOff}
+                title="Точки маршрута"
+                subtitle="Показывает старт, финиш и текущую позицию во время навигации."
+                enabled={layerOptions.pins}
+                onToggle={() => toggleLayerOption("pins")}
+              />
+              <ToggleRow
+                icon={Radio}
+                title="Точность GPS"
+                subtitle="Мягкий радиус вокруг текущей позиции. Не меняет маршрут и оценку."
+                enabled={layerOptions.gpsAccuracy}
+                onToggle={() => toggleLayerOption("gpsAccuracy")}
+              />
+            </NativeSection>
+
+            <NativeSection title="Линия маршрута" eyebrow="Визуализация">
+              <ToggleRow
+                icon={layerOptions.route ? Eye : EyeOff}
+                title="Показывать маршрут"
+                subtitle="Включает выбранную GeoJSON-линию на карте."
+                enabled={layerOptions.route}
+                onToggle={() => toggleLayerOption("route")}
+              />
+              <ToggleRow
+                icon={Compass}
+                title="Акцент выбранного пути"
+                subtitle="Делает активную линию заметнее без изменения геометрии."
+                enabled={layerOptions.routeEmphasis}
+                onToggle={() => toggleLayerOption("routeEmphasis")}
+              />
+            </NativeSection>
+            {sidewalkCells?.features?.length ? (
+              <NativeSection title="Оверлеи" eyebrow="Реальные наблюдения">
+                <ToggleRow
+                  icon={ShieldCheck}
+                  title="Ячейки качества тротуаров"
+                  subtitle={`Показано ${sidewalkCells.features.length} H3-ячеек качества и свежести.`}
+                  enabled={layerOptions.sidewalkQuality}
+                  onToggle={() => toggleLayerOption("sidewalkQuality")}
+                />
+              </NativeSection>
+            ) : null}
+          </div>
+        </div>
+      );
+    }
+
+    if (plannerStage === "navigating") {
+      const instructions = selectedRoute?.properties?.instructions ?? [];
+      const currentInstruction = instructions[activeInstructionIndex] ?? instructions[0] ?? null;
+      const nextPanelInstruction = instructions[activeInstructionIndex + 1] ?? null;
+
+      return (
+        <div className="flex min-h-0 flex-1 flex-col">
+          {selectedRoute ? (
+            <>
+              <div className="navigation-overview quiet-panel mb-4 rounded-[1.2rem] px-4 py-4">
+                <div className="flex items-start gap-3">
+                  <div className="navigation-overview-icon inline-flex h-11 w-11 items-center justify-center rounded-[0.9rem] bg-primary text-on-primary">
+                    {isRerouting ? <Loader2 size={19} className="animate-spin" /> : <Navigation2 size={19} />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-bold text-outline">
+                      {isRerouting ? "Перестраиваем" : "Следующий манёвр"}
+                    </div>
+                    <div className="mt-1 line-clamp-2 text-base font-black leading-5 tracking-tight text-on-surface">
+                      {isRerouting ? "Ищем лучший путь" : navigationHint.title}
+                    </div>
+                    <div className="mt-2 text-sm font-medium leading-5 text-on-surface-variant">
+                      {gpsStatus || navigationHint.subtitle}
+                    </div>
+                    <div className="navigation-overview-metrics mt-3 grid grid-cols-2 gap-2 text-sm font-bold text-on-surface">
+                      <span>{selectedRoute.properties?.estimated_mins ?? "--"} мин</span>
+                      <span>{formatDistance(selectedRoute.properties?.distance_m)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="navigation-panel-actions mb-4 grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={handleShowRouteOptions}
+                  className="secondary-route-button inline-flex items-center justify-center gap-2 rounded-full bg-white/62 px-4 py-3 text-sm font-bold text-on-surface-variant transition-all hover:bg-white/78 active:scale-[0.985]"
+                >
+                  <Route size={15} />
+                  Варианты
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleTabSelect("map")}
+                  className="secondary-route-button inline-flex items-center justify-center gap-2 rounded-full bg-white/62 px-4 py-3 text-sm font-bold text-on-surface-variant transition-all hover:bg-white/78 active:scale-[0.985]"
+                >
+                  <LayersIcon size={15} />
+                  Карта
+                </button>
+              </div>
+
+              <div className="min-h-0 flex-1 overflow-y-auto pr-2">
+                {nextPanelInstruction ? (
+                  <div className="instruction-next-card mb-3 rounded-[1rem] bg-white/58 px-4 py-3">
+                    <div className="text-xs font-bold text-outline">После этого</div>
+                    <div className="mt-1 text-sm font-bold text-on-surface">{nextPanelInstruction.text}</div>
+                    <div className="mt-1 text-xs font-medium text-outline">{formatInstructionMeta(nextPanelInstruction)}</div>
+                  </div>
+                ) : null}
+
+                <details className="maneuver-list-details" open={false}>
+                  <summary className="maneuver-list-summary">
+                    <span>Все манёвры</span>
+                    <span>{instructions.length || 0}</span>
+                  </summary>
+                  <div className="mt-2 space-y-2 pb-4">
+                    {instructions.slice(0, 24).map((instruction, index) => (
+                      <button
+                        key={`${instruction.index}-${instruction.begin_shape_index}-${index}`}
+                        type="button"
+                        onClick={() => setActiveInstructionIndex(index)}
+                        className={cn(
+                          "instruction-row flex w-full items-start gap-3 rounded-[1rem] px-4 py-3 text-left transition-all",
+                          index === activeInstructionIndex ? "bg-white/82 text-on-surface" : "hover:bg-white/55",
+                        )}
+                      >
+                        <span className={cn("mt-1 h-2.5 w-2.5 rounded-full", index === activeInstructionIndex ? "bg-primary" : "bg-outline-variant")} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-bold text-on-surface">{instruction.text}</span>
+                          <span className="mt-1 block text-xs font-medium text-outline">
+                            {formatInstructionMeta(instruction)}
+                          </span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </details>
+                {currentInstruction ? (
+                  <p className="mt-3 text-xs font-medium leading-5 text-outline">
+                    Подсказки взяты из рассчитанного маршрута. SafeRoute не добавляет выдуманные повороты.
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={handleResetRoute}
+                  className="primary-route-button inline-flex w-full items-center justify-center gap-2 rounded-full bg-error px-4 py-4 text-sm font-bold text-on-error transition-all active:scale-[0.985]"
+                >
+                  Завершить
+                </button>
+              </div>
+            </>
+          ) : (
+            <EmptyState title="Навигация появится после маршрута" icon={Navigation2}>
+              Сначала выберите точку назначения и реальную альтернативу. Здесь появятся манёвры без эвристических подсказок.
+            </EmptyState>
+          )}
+        </div>
+      );
+    }
+
+    if (activeTab === "legacy-search") {
       return (
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="mb-5">
-            <EndpointStack origin={origin} destination={destination} onSwap={handleSwap} />
+            <EndpointStack
+              origin={origin}
+              destination={destination}
+              activeEndpoint={activeEndpoint}
+              onSelectEndpoint={handleEndpointSelect}
+              onSwap={handleSwap}
+            />
           </div>
 
           <AnimatePresence mode="wait">
@@ -513,15 +958,13 @@ export default function App() {
           </AnimatePresence>
 
           <div className="min-h-0 flex-1 overflow-y-auto pr-2">
-            <EmptyState title="Начните с поиска" icon={Search}>
-              Введите адрес или ориентир в верхней строке. Результаты приходят из локального SafeRoute API, а не из публичного Nominatim.
-            </EmptyState>
+            <SearchEmptyState />
 
             {destination ? (
               <motion.button
                 type="button"
                 layout
-                onClick={() => handleTabSelect("routes")}
+                onClick={() => handleTabSelect("route")}
                 className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-white/66 px-5 py-3 text-sm font-bold text-on-surface-variant transition-all hover:bg-white/82 active:scale-[0.985]"
               >
                 <Route size={15} />
@@ -532,8 +975,7 @@ export default function App() {
         </div>
       );
     }
-
-    if (activeTab === "navigation") {
+    if (activeTab === "legacy-navigation") {
       const instructions = selectedRoute?.properties?.instructions ?? [];
 
       return (
@@ -572,7 +1014,7 @@ export default function App() {
                       <span className="min-w-0 flex-1">
                         <span className="block text-sm font-bold text-on-surface">{instruction.text}</span>
                         <span className="mt-1 block text-xs font-medium text-outline">
-                          {formatDistance(instruction.distance_m)} • {Math.round((instruction.time_s ?? 0) / 60) || 1} мин
+                          {formatInstructionMeta(instruction)}
                         </span>
                       </span>
                     </button>
@@ -601,103 +1043,139 @@ export default function App() {
             </>
           ) : (
             <EmptyState title="Навигация появится после маршрута" icon={Navigation2}>
-              Сначала выберите точку назначения и реальную альтернативу. Здесь появятся манёвры из Valhalla без эвристических подсказок.
+              Сначала выберите точку назначения и реальную альтернативу. Здесь появятся реальные манёвры маршрута без эвристических подсказок.
             </EmptyState>
           )}
         </div>
       );
     }
 
-    if (activeTab === "layers") {
+    if (activeTab === "legacy-layers") {
       return (
         <div className="min-h-0 flex-1 overflow-y-auto pr-2">
-          <div className="space-y-2">
-            <ToggleRow
-              icon={layerOptions.route ? Eye : EyeOff}
-              title="Линия маршрута"
-              subtitle="Показывает или скрывает текущий GeoJSON route source."
-              enabled={layerOptions.route}
-              onToggle={() => toggleLayerOption("route")}
-            />
-            <ToggleRow
-              icon={Compass}
-              title="Акцент маршрута"
-              subtitle="Усиливает тень и толщину линии, не меняя геометрию."
-              enabled={layerOptions.routeEmphasis}
-              onToggle={() => toggleLayerOption("routeEmphasis")}
-            />
-            <ToggleRow
-              icon={Radio}
-              title="Пульс GPS"
-              subtitle="Визуальный индикатор точности вокруг текущей точки."
-              enabled={layerOptions.gpsAccuracy}
-              onToggle={() => toggleLayerOption("gpsAccuracy")}
-            />
-            <ToggleRow
-              icon={LayersIcon}
-              title="Пины поиска"
-              subtitle="Показывает origin и destination markers на карте."
-              enabled={layerOptions.pins}
-              onToggle={() => toggleLayerOption("pins")}
-            />
-            <ToggleRow
-              icon={ShieldCheck}
-              title="Качество тротуаров"
-              subtitle={
-                sidewalkCellsLoading
-                  ? "Загружаем реальные H3-агрегаты telemetry API..."
-                  : sidewalkCellsError
-                    ? sidewalkCellsError
-                    : sidewalkCells?.features?.length
-                      ? `Показано ${sidewalkCells.features.length} H3-ячеек качества и свежести.`
-                      : "Показывает реальные telemetry H3-ячейки; пусто, пока данных нет."
-              }
-              enabled={layerOptions.sidewalkQuality}
-              onToggle={() => toggleLayerOption("sidewalkQuality")}
-            />
+          <div className="space-y-5">
+            <NativeSection title="Карта" eyebrow="Отображение">
+              <ToggleRow
+                icon={layerOptions.pins ? Eye : EyeOff}
+                title="Пины старта и финиша"
+                subtitle="Показывает выбранные точки маршрута на карте."
+                enabled={layerOptions.pins}
+                onToggle={() => toggleLayerOption("pins")}
+              />
+              <ToggleRow
+                icon={Radio}
+                title="Пульс GPS"
+                subtitle="Показывает визуальную точность текущей позиции."
+                enabled={layerOptions.gpsAccuracy}
+                onToggle={() => toggleLayerOption("gpsAccuracy")}
+              />
+            </NativeSection>
+
+            <NativeSection title="Маршрут" eyebrow="Визуализация">
+              <ToggleRow
+                icon={layerOptions.route ? Eye : EyeOff}
+                title="Линия маршрута"
+                subtitle="Включает GeoJSON-линию выбранного варианта."
+                enabled={layerOptions.route}
+                onToggle={() => toggleLayerOption("route")}
+              />
+              <ToggleRow
+                icon={Compass}
+                title="Акцент маршрута"
+                subtitle="Делает выбранную линию заметнее, не меняя геометрию."
+                enabled={layerOptions.routeEmphasis}
+                onToggle={() => toggleLayerOption("routeEmphasis")}
+              />
+            </NativeSection>
+
+            <NativeSection title="Данные" eyebrow="Доступность">
+              <ToggleRow
+                icon={ShieldCheck}
+                title="Ячейки телеметрии"
+                subtitle={
+                  sidewalkCellsLoading
+                    ? "Загружаем реальные H3-агрегаты..."
+                    : sidewalkCellsAwaitingHealth || isHealthLoading
+                      ? "Проверяем PostGIS перед загрузкой H3-слоя..."
+                    : sidewalkCellsBlocked
+                      ? "PostGIS сейчас недоступен; слой включится после восстановления API."
+                      : sidewalkCellsError
+                      ? sidewalkCellsError
+                      : sidewalkCells?.features?.length
+                        ? `Показано ${sidewalkCells.features.length} H3-ячеек качества и свежести.`
+                        : "Слой доступен только при реальных агрегатах; сейчас данных нет."
+                }
+                enabled={layerOptions.sidewalkQuality}
+                onToggle={() => toggleLayerOption("sidewalkQuality")}
+              />
+              <StatusRow
+                icon={ShieldCheck}
+                title="Покрытие, тротуары, свет и переходы"
+                subtitle="Активные слои приходят из проверенных OSM-данных и отражаются в оценке только при наличии данных."
+                tone="success"
+              />
+            </NativeSection>
+
+            <NativeSection title="Пока недоступно" eyebrow="Без имитации">
+              <StatusRow
+                icon={LayersIcon}
+                title="Бордюры, зоны СИМ, трафик, плотность пешеходов и телеметрия"
+                subtitle="Не отображаются как активные и не влияют на оценку, пока нет легального источника и проверки."
+                tone="muted"
+              />
+            </NativeSection>
           </div>
         </div>
       );
     }
 
-    if (activeTab === "settings") {
+    if (activeTab === "about") {
       return (
         <div className="min-h-0 flex-1 overflow-y-auto pr-2">
-          <ServiceHealthList health={health} loading={isHealthLoading} onRefresh={loadHealth} />
+          <div className="space-y-5">
+            <NativeSection title="Публичная бета" eyebrow="Коротко">
+              <StatusRow
+                icon={ShieldCheck}
+                title="Маршруты строятся по реальному графу Москвы"
+                subtitle="Оценка использует активные OSM-факторы, переходы и только те причины, которые вернул API."
+                tone="success"
+              />
+              <StatusRow
+                icon={LayersIcon}
+                title="Ограниченные слои не подменяются"
+                subtitle="Бордюры, зоны СИМ, измеренный трафик, плотность пешеходов и телеметрия не влияют на маршрут без проверенных данных."
+                tone="muted"
+              />
+            </NativeSection>
 
-          <div className="mt-4 space-y-2">
-            <div className="service-row rounded-[1.2rem] px-4 py-3">
-              <div className="flex items-center gap-2 text-sm font-bold text-on-surface">
-                <CheckCircle2 size={16} className="text-primary" />
-                Motion policy
-              </div>
-              <div className="mt-1 text-xs font-medium leading-5 text-outline">
-                Framer Motion работает через MotionConfig с reducedMotion=&quot;user&quot;.
-              </div>
-            </div>
-            <div className="service-row rounded-[1.2rem] px-4 py-3">
-              <div className="flex items-center gap-2 text-sm font-bold text-on-surface">
-                <ShieldCheck size={16} className="text-primary" />
-                Источник маршрутов
-              </div>
-              <div className="mt-1 text-xs font-medium leading-5 text-outline">
-                {selectedRoute?.properties?.source || "Маршрут ещё не построен"}
-              </div>
-            </div>
-            <a
-              href={FIGMA_DESIGN_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="service-row block rounded-[1.2rem] px-4 py-3 transition-all hover:bg-white/58 active:scale-[0.99]"
-            >
-              <div className="flex items-center gap-2 text-sm font-bold text-on-surface">
-                <ExternalLink size={16} className="text-primary" />
-                Figma design source
-              </div>
-              <div className="mt-1 text-xs font-medium leading-5 text-outline">
-                SafeRoute Apple Minimal board: вкладки, glass-токены, motion notes и route-card система.
-              </div>
-            </a>
+            <NativeSection title="Комфорт" eyebrow="Интерфейс">
+              <StatusRow
+                icon={CheckCircle2}
+                title="Мягкие анимации"
+                subtitle="Движение интерфейса спокойное и уменьшается, если это задано в системных настройках."
+                tone="success"
+              />
+              <StatusRow
+                icon={ShieldCheck}
+                title="Проверенный маршрут"
+                subtitle={selectedRoute ? "Построен по реальному графу и возвращён API без подмены причин." : "Появится после построения маршрута."}
+                tone={selectedRoute ? "success" : "neutral"}
+              />
+              <a
+                href="https://www.openstreetmap.org/copyright"
+                target="_blank"
+                rel="noreferrer"
+                className="native-row native-row-neutral transition-all hover:bg-white active:scale-[0.99]"
+              >
+                <div className="native-row-leading">
+                  <ExternalLink size={18} aria-hidden="true" />
+                </div>
+                <div className="native-row-copy">
+                  <div className="native-row-title">Источники карты</div>
+                  <div className="native-row-subtitle">Атрибуция OpenStreetMap и CARTO всегда остается видимой в публичной сборке.</div>
+                </div>
+              </a>
+            </NativeSection>
           </div>
         </div>
       );
@@ -705,30 +1183,13 @@ export default function App() {
 
     return (
       <div className="flex min-h-0 flex-1 flex-col">
-        <div className="mb-5 flex items-center gap-2 rounded-full bg-white/40 p-1.5">
-          {PROFILE_OPTIONS.map((option) => (
-            <ModeButton
-              key={option.id}
-              option={option}
-              active={profile === option.id}
-              onSelect={handleProfileChange}
-            />
-          ))}
+        <div className="mb-4">
+          {renderRouteEndpointSummary()}
         </div>
 
-        <div className="mb-5 grid grid-cols-4 gap-2 rounded-full bg-white/40 p-1.5">
-          {SCORING_MODE_OPTIONS.map((option) => (
-            <ModeButton
-              key={option.id}
-              option={option}
-              active={routeMode === option.id}
-              onSelect={handleRouteModeChange}
-            />
-          ))}
-        </div>
-
-        <div className="mb-5">
-          <EndpointStack origin={origin} destination={destination} onSwap={handleSwap} />
+        <div className="planner-control-stack mb-4 space-y-4">
+          <SegmentedControl label="Профиль" options={PROFILE_OPTIONS} value={profile} onChange={handleProfileChange} />
+          <SegmentedControl label="Приоритет" options={SCORING_MODE_OPTIONS} value={routeMode} onChange={handleRouteModeChange} compact />
         </div>
 
         <AnimatePresence mode="wait">
@@ -736,7 +1197,11 @@ export default function App() {
         </AnimatePresence>
 
         <div className="min-h-0 flex-1 overflow-y-auto pr-2">
-          {routes.length > 0 ? (
+          {isRouting && routes.length === 0 ? (
+            <RouteLoadingState />
+          ) : feedback?.type === "error" ? (
+            <ErrorRecoveryCard feedback={feedback} onRetry={destination ? () => requestRoutes() : null} />
+          ) : routes.length > 0 ? (
             <div className="space-y-4 pb-4">
               {routes.map((route, index) => (
                 <RouteCard
@@ -747,20 +1212,32 @@ export default function App() {
                   onSelect={setSelectedRouteId}
                 />
               ))}
+              {selectedRoute ? (
+                <details className="route-details-disclosure">
+                  <summary className="route-details-summary">
+                    <span>Почему такая оценка</span>
+                    <span>{selectedRoute.properties?.score?.total ?? selectedRoute.properties?.safety_index ?? "--"}/100</span>
+                  </summary>
+                  <div className="route-details-content">
+                    <SafetyScorePanel route={selectedRoute} />
+                    <DataCoverageNote score={selectedRoute?.properties?.score} />
+                  </div>
+                </details>
+              ) : null}
             </div>
           ) : (
-            <EmptyState title="Маршруты появятся здесь" icon={Route}>
-              Выберите место из autocomplete. SafeRoute покажет только реальные маршруты Valhalla/PostGIS без transit-заглушек.
-            </EmptyState>
+            <RouteEmptyState />
           )}
         </div>
 
-        <div className="mt-5 space-y-3">
-          <div className="flex items-center gap-2 text-xs font-medium text-on-surface-variant">
+        <div className="route-action-stack mt-5 space-y-3">
+          <div className="route-safety-note flex items-center gap-2 text-xs font-medium text-on-surface-variant">
             <ShieldCheck size={14} className="text-primary" />
             <span>
               {selectedRoute
-                ? `Индекс безопасности: ${selectedRoute.properties?.safety_index ?? "--"}%`
+                ? selectedRoute.properties?.score
+                  ? `Индекс безопасности: ${selectedRoute.properties?.safety_index ?? "--"}%`
+                  : "Индекс безопасности недоступен без проверенного графа"
                 : "Постройте маршрут, чтобы оценить безопасность пути"}
             </span>
           </div>
@@ -769,7 +1246,7 @@ export default function App() {
             type="button"
             onClick={handleStartNavigation}
             disabled={primaryActionBusy || !destination}
-            className="soul-gradient inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-4 text-sm font-bold tracking-[0.14em] text-on-primary shadow-[0_18px_36px_rgba(0,88,188,0.22)] transition-all hover:opacity-92 active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-60"
+            className="primary-route-button soul-gradient inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-4 text-sm font-bold tracking-[0.14em] text-on-primary shadow-[0_18px_36px_rgba(0,88,188,0.22)] transition-all hover:opacity-92 active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {primaryActionBusy ? <Loader2 size={16} className="animate-spin" /> : <Navigation2 size={16} />}
             <span>{primaryActionLabel}</span>
@@ -779,7 +1256,7 @@ export default function App() {
             <button
               type="button"
               onClick={handleResetRoute}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-white/58 px-5 py-3 text-sm font-semibold text-on-surface-variant transition-all hover:bg-white/72 active:scale-[0.985]"
+              className="secondary-route-button inline-flex w-full items-center justify-center gap-2 rounded-full bg-white/58 px-5 py-3 text-sm font-semibold text-on-surface-variant transition-all hover:bg-white/72 active:scale-[0.985]"
             >
               <RotateCcw size={14} />
               <span>Сбросить маршрут</span>
@@ -800,6 +1277,7 @@ export default function App() {
               initialViewState={INITIAL_VIEW_STATE}
               mapStyle={MAP_STYLE}
               attributionControl={false}
+              onClick={handleMapClick}
             >
               {layerOptions.sidewalkQuality && sidewalkCells?.features?.length ? (
                 <Source id="sidewalk-quality" type="geojson" data={sidewalkCells}>
@@ -870,11 +1348,41 @@ export default function App() {
                 </Marker>
               ) : null}
 
-              <div className="absolute bottom-10 right-4 z-10">
-                <NavigationControl showCompass={false} />
+              <div
+                className="map-attribution absolute bottom-4 left-4 z-10 max-w-[calc(100vw-2rem)] rounded-full bg-white/82 px-3 py-1.5 text-[11px] font-semibold text-on-surface-variant shadow-[0_10px_26px_rgba(20,36,56,0.12)] backdrop-blur-xl"
+                aria-label="Map and enrichment data attribution"
+              >
+                {renderAttributionLinks()}
               </div>
             </Map>
-            <div className="map-atmosphere pointer-events-none absolute inset-0" />
+            <motion.div
+              className="map-atmosphere pointer-events-none absolute inset-0"
+              initial={false}
+              animate={{
+                opacity: plannerStage === "navigating" ? 0.62 : 1,
+                x: panelOpen ? 0 : -8,
+              }}
+              transition={PAGE_TRANSITION}
+            />
+          </div>
+
+          <div className="custom-map-zoom" aria-label="Масштаб карты">
+            <button
+              type="button"
+              className="maplibregl-ctrl-zoom-in"
+              aria-label="Увеличить карту"
+              onClick={() => handleMapZoom(1)}
+            >
+              +
+            </button>
+            <button
+              type="button"
+              className="maplibregl-ctrl-zoom-out"
+              aria-label="Уменьшить карту"
+              onClick={() => handleMapZoom(-1)}
+            >
+              −
+            </button>
           </div>
 
           <AnimatePresence>
@@ -882,22 +1390,26 @@ export default function App() {
               <>
                 {commandBarVisible ? (
                   <motion.nav
+                    ref={commandNavRef}
                     layout
-                    initial={{ opacity: 0, y: -18 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={PANEL_TRANSITION}
+                    initial={{ opacity: 0, y: -18, scale: 0.985 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -10, scale: 0.99 }}
+                    transition={SHEET_TRANSITION}
                     className="fixed left-0 top-0 z-50 w-full px-4 pt-4 md:w-auto"
                   >
                     <form
                       onSubmit={handleSearch}
-                      className="command-bar glass-panel mx-auto flex w-full max-w-2xl items-center gap-1 rounded-[1.8rem] px-3 py-3 md:mx-0 md:max-w-xl"
+                      className="command-bar material-toolbar mx-auto flex w-full max-w-2xl items-center gap-1 rounded-[1.5rem] px-3 py-3 md:mx-0 md:max-w-xl"
                     >
                       <button
                         type="button"
-                        aria-label="Показать панель маршрутов"
-                        onClick={() => setPanelOpen((previous) => !previous)}
-                        className="inline-flex h-11 w-11 items-center justify-center rounded-full text-on-surface-variant transition-all hover:bg-white/55 active:scale-95"
+                        aria-label={sectionMenuOpen ? "Закрыть разделы" : "Открыть разделы"}
+                        aria-expanded={sectionMenuOpen}
+                        aria-haspopup="dialog"
+                        title="Разделы"
+                        onClick={handleSectionMenuToggle}
+                        className={cn("icon-button", sectionMenuOpen && "icon-button-active")}
                       >
                         <Menu size={18} />
                       </button>
@@ -905,43 +1417,38 @@ export default function App() {
                       <Search size={17} className="ml-1 text-outline" />
 
                       <input
+                        ref={searchInputRef}
                         value={query}
                         onChange={(event) => {
                           setQuery(event.target.value);
-                          setActiveTab("search");
+                          setActiveTab("route");
+                          setSectionMenuOpen(false);
                         }}
                         onFocus={() => {
-                          setActiveTab("search");
+                          setActiveTab("route");
+                          setSectionMenuOpen(false);
                           if (searchResults.length) {
                             setIsAutocompleteOpen(true);
                           }
                         }}
                         onKeyDown={handleSearchKeyDown}
                         className="w-full border-none bg-transparent px-2 py-2 text-sm font-medium text-on-surface placeholder:text-outline focus:outline-none"
-                        placeholder="Куда едем по Москве?"
+                        placeholder={searchPlaceholder}
+                        aria-label={searchAriaLabel}
                         aria-autocomplete="list"
                         aria-expanded={isAutocompleteOpen}
                       />
 
-                      <div className="ml-2 flex items-center gap-1 pl-2">
-                        <button
-                          type="button"
-                          onClick={() => handleTabSelect("settings")}
-                          className="inline-flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition-all hover:bg-white/55"
-                          aria-label="Профиль и настройки"
-                        >
-                          <User size={17} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleTabSelect("layers")}
-                          className="inline-flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition-all hover:bg-white/55"
-                          aria-label="Слои"
-                        >
-                          <SlidersHorizontal size={17} />
-                        </button>
-                      </div>
+                      <button
+                        type="submit"
+                        className="route-search-submit ml-2 inline-flex h-10 items-center justify-center rounded-full bg-primary px-4 text-sm font-bold text-on-primary transition-all hover:bg-primary/90 active:scale-[0.97] disabled:opacity-60"
+                        disabled={primaryActionBusy}
+                      >
+                        {primaryActionBusy ? <Loader2 size={16} className="animate-spin" /> : "Найти"}
+                      </button>
                     </form>
+
+                    {renderSectionMenu()}
 
                     {isAutocompleteOpen ? (
                       <SearchResults
@@ -949,7 +1456,7 @@ export default function App() {
                         highlightedIndex={highlightedResultIndex}
                         loading={isSearching && !isRouting}
                         query={query}
-                        onPick={chooseDestination}
+                        onPick={chooseSearchResult}
                       />
                     ) : null}
                   </motion.nav>
@@ -957,33 +1464,42 @@ export default function App() {
 
                 <motion.aside
                   layout
-                  initial={{ opacity: 0, x: -24 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -18 }}
-                  transition={PANEL_TRANSITION}
+                  initial={{ opacity: 0, x: -24, scale: 0.985 }}
+                  animate={{ opacity: 1, x: 0, scale: 1 }}
+                  exit={{ opacity: 0, x: -18, scale: 0.99 }}
+                  transition={SHEET_TRANSITION}
                   className={cn(
-                    "planner-panel glass-panel fixed left-4 top-[94px] z-40 flex h-[calc(100%-7.2rem)] w-[min(26rem,calc(100vw-2rem))] flex-col rounded-[2rem] px-6 py-6",
+                    "planner-panel material-panel fixed left-4 top-[94px] z-40 flex h-[calc(100%-7.2rem)] w-[min(26rem,calc(100vw-2rem))] flex-col rounded-[1.5rem] px-6 py-6",
+                    `mobile-sheet-${mobileSheetState}`,
                     panelOpen
-                      ? "translate-y-0 opacity-100"
-                      : "-translate-y-[calc(100%+6rem)] opacity-0 md:translate-y-0 md:opacity-100",
+                      ? "translate-y-0 opacity-100 pointer-events-auto"
+                      : "-translate-y-[calc(100%+6rem)] opacity-0 pointer-events-none",
                     "transition-all duration-300 md:opacity-100",
                   )}
                 >
+                  <button
+                    type="button"
+                    className="sheet-handle"
+                    aria-label="Свернуть панель"
+                    onClick={() => setPanelOpen(false)}
+                  >
+                    <span />
+                  </button>
                   <PanelHeader activeTab={activeTab} onClose={() => setPanelOpen(false)} />
-                  <AppTabRail activeTab={activeTab} hasRoute={Boolean(selectedRoute)} onSelect={handleTabSelect} />
                   <AnimatePresence mode="wait">
                     <motion.div
                       key={activeTab}
                       layout
-                      initial={{ opacity: 0, y: 10, filter: "blur(6px)" }}
-                      animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                      exit={{ opacity: 0, y: -8, filter: "blur(4px)" }}
-                      transition={PANEL_TRANSITION}
+                      initial={{ opacity: 0, y: 8, scale: 0.995 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -6, scale: 0.995 }}
+                      transition={PAGE_TRANSITION}
                       className="flex min-h-0 flex-1 flex-col"
                     >
                       {renderPanelContent()}
                     </motion.div>
                   </AnimatePresence>
+                  {renderAttributionLinks("panel-attribution mt-3 rounded-full bg-white/54 px-3 py-2 text-center md:hidden")}
                 </motion.aside>
               </>
             ) : null}
@@ -1012,7 +1528,7 @@ export default function App() {
             ) : null}
           </AnimatePresence>
 
-          {plannerStage !== "navigating" ? <WeatherChip /> : null}
+          {plannerStage !== "navigating" ? <WeatherChip route={selectedRoute} /> : null}
         </div>
       </LayoutGroup>
     </MotionConfig>

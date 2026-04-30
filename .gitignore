@@ -4,6 +4,7 @@
 .env
 .env.*
 !.env.example
+!.env.production.example
 
 # Node / frontend
 node_modules/
@@ -15,6 +16,7 @@ dist/
 
 # Python / backend
 venv/
+venv*/
 .venv/
 backend/venv/
 __pycache__/
@@ -25,8 +27,14 @@ __pycache__/
 .ruff_cache/
 
 # Local self-hosted data and runtime caches
-data/
+/data/
 cache/
+
+# Release graph artifacts are published outside git, never committed.
+data/graph/*.dump
+data/graph/*.dump.manifest.json
+data/graph/*.sha256
+data/graph/release/
 
 # Editor / OS
 .idea/

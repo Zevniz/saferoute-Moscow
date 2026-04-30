@@ -8,6 +8,7 @@ from app.services.telemetry import (
     h3_cell_center,
     h3_cell_polygon,
     h3_latlng_to_cell,
+    ingest_sidewalk_samples,
     list_sidewalk_cells,
     parse_bbox,
     sample_quality,
@@ -69,6 +70,52 @@ def test_parse_bbox_rejects_non_finite_values():
 def test_parse_bbox_rejects_out_of_range_coordinates():
     with pytest.raises(ValueError, match="valid longitude/latitude"):
         parse_bbox("181,55.68,182,55.82")
+
+
+def test_sidewalk_sample_rejects_coordinates_outside_product_bounds():
+    with pytest.raises(ValidationError):
+        SidewalkSample(
+            device_id="robot-1",
+            captured_at=datetime(2026, 4, 20, 12, 0, 0, tzinfo=timezone.utc),
+            lat=57.0,
+            lon=37.6173,
+            speed_mps=1.1,
+            source="robot",
+        )
+
+
+def test_ingest_rejects_batch_above_runtime_limit_before_database(monkeypatch):
+    class Settings:
+        telemetry_max_batch_size = 1
+
+    def fail_if_called():
+        raise AssertionError("database schema should not be touched for oversized batches")
+
+    batch = SidewalkTelemetryBatch(
+        samples=[
+            {
+                "device_id": "robot-1",
+                "captured_at": "2026-04-20T12:00:00Z",
+                "lat": 55.7558,
+                "lon": 37.6173,
+                "speed_mps": 1.1,
+                "source": "robot",
+            },
+            {
+                "device_id": "robot-2",
+                "captured_at": "2026-04-20T12:01:00Z",
+                "lat": 55.756,
+                "lon": 37.618,
+                "speed_mps": 1.0,
+                "source": "robot",
+            },
+        ]
+    )
+    monkeypatch.setattr("app.services.telemetry.get_settings", lambda: Settings())
+    monkeypatch.setattr("app.services.telemetry.ensure_telemetry_tables", fail_if_called)
+
+    with pytest.raises(ValueError, match="too many telemetry samples"):
+        ingest_sidewalk_samples(batch)
 
 
 def test_sidewalk_cells_validates_bbox_before_touching_database(monkeypatch):

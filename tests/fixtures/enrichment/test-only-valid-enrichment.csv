@@ -1,0 +1,2 @@
+edge_id,confidence,surface_type,surface_quality,sidewalk_presence,sidewalk_width_m,lighting_quality,traffic_intensity
+42,0.85,asphalt,smooth,true,2.4,good,0.2

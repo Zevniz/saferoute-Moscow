@@ -1,0 +1,2 @@
+edge_id,confidence,observed_at,traffic_intensity,traffic_volume,speed_kmh,source_category
+42,0.82,2026-04-28T10:00:00Z,0.73,1840,18.5,measured_sensor_export

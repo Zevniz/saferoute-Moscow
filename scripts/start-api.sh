@@ -6,6 +6,10 @@ BACKEND_PORT="${BACKEND_PORT:-8000}"
 
 cd "$ROOT_DIR"
 
+redact_url() {
+  sed -E 's#(postgres(ql)?://[^:/@]+):[^@]*@#\1:***@#' <<<"$1"
+}
+
 if [[ ! -x ./venv/bin/python ]]; then
   echo "Missing ./venv/bin/python." >&2
   echo "Create the local environment first:" >&2
@@ -16,7 +20,7 @@ fi
 
 echo "Starting SafeRoute FastAPI on http://127.0.0.1:$BACKEND_PORT"
 echo "Dependency defaults:"
-echo "  DATABASE_URL=${DATABASE_URL:-postgresql://artem@localhost:5433/artem}"
+echo "  DATABASE_URL=$(redact_url "${DATABASE_URL:-postgresql://artem@localhost:5433/artem}")"
 echo "  PHOTON_URL=${PHOTON_URL:-http://localhost:2322}"
 echo "  VALHALLA_URL=${VALHALLA_URL:-http://localhost:8002}"
 echo

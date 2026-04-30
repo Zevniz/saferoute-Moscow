@@ -13,11 +13,11 @@ const VARIANT_LABELS = {
 const VARIANT_SUBTITLES = {
   walk: {
     safe: "Меньше рискованных участков для пешего пути",
-    balanced: "Баланс темпа и спокойного маршрута",
+    balanced: "Ровный баланс темпа и спокойствия",
     fast: "Минимальное время в пути пешком",
   },
   bike: {
-    safe: "Приоритет более спокойным улицам",
+    safe: "Приоритет спокойным улицам",
     balanced: "Баланс темпа и безопасности на дороге",
     fast: "Быстрее добраться на велосипеде",
   },
@@ -35,6 +35,23 @@ const DEFAULT_VARIANT_BY_PROFILE = {
 };
 
 const EPSILON = 1e-7;
+const SHORT_MANEUVER_METERS = 120;
+const SHORT_MANEUVER_SECONDS = 120;
+
+const DIRECTION_PHRASES = {
+  "север": "на север",
+  "юг": "на юг",
+  "восток": "на восток",
+  "запад": "на запад",
+  "северо-восток": "на северо-восток",
+  "северо-запад": "на северо-запад",
+  "юго-восток": "на юго-восток",
+  "юго-запад": "на юго-запад",
+};
+
+const ROUTE_DIRECTIONS_PATTERN =
+  "(северо-восток|северо-запад|юго-восток|юго-запад|север|юг|восток|запад)";
+const ROUTE_DIRECTION_TAIL_PATTERN = "(\\s+.*|[.,!?].*|$)";
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -54,6 +71,14 @@ function normalizeVariant(variant, index) {
   }
 
   return ["safe", "balanced", "fast"][index] ?? "safe";
+}
+
+function normalizeRouteLabel(label, variant) {
+  if (!label || /valhalla/i.test(String(label))) {
+    return VARIANT_LABELS[variant];
+  }
+
+  return label;
 }
 
 function pointDistance(start, end) {
@@ -87,6 +112,39 @@ function normalizeSafetyIndex(value) {
   return 95;
 }
 
+function normalizeInstructionText(value) {
+  const rawText = String(value ?? "").trim().replace(/[‐‑‒–—]/g, "-");
+  if (!rawText) {
+    return "Манёвр маршрута";
+  }
+
+  const withLevel = rawText.replace(/\bLevel\s*(-?\d+)\b/gi, "уровень $1");
+  const stairsMatch = withLevel.match(/^Воспользуйтесь лестниц(?:ей|ами) до уровень\s*(-?\d+)\.?$/i);
+  if (stairsMatch) {
+    const level = Number(stairsMatch[1]);
+    return level < 0
+      ? `Спуститесь по лестнице на уровень ${stairsMatch[1]}.`
+      : `Поднимитесь по лестнице на уровень ${stairsMatch[1]}.`;
+  }
+
+  const directionMatch = withLevel.match(new RegExp(`^Идите\\s+${ROUTE_DIRECTIONS_PATTERN}${ROUTE_DIRECTION_TAIL_PATTERN}`, "i"));
+  if (directionMatch) {
+    const direction = DIRECTION_PHRASES[directionMatch[1].toLowerCase()] ?? directionMatch[1].toLowerCase();
+    return `Двигайтесь ${direction}${directionMatch[2]}`;
+  }
+
+  const normalized = withLevel
+    .replace(/^Идите\s+на\s+/i, "Двигайтесь на ")
+    .replace(/^Идите\s+по\b/i, "Двигайтесь по")
+    .replace(/^Идите\s+/i, "Двигайтесь ")
+    .replace(/^Идите\b/i, "Двигайтесь");
+
+  return normalized.replace(new RegExp(`^Двигайтесь\\s+${ROUTE_DIRECTIONS_PATTERN}${ROUTE_DIRECTION_TAIL_PATTERN}`, "i"), (_, rawDirection, rest) => {
+    const direction = DIRECTION_PHRASES[rawDirection.toLowerCase()] ?? rawDirection.toLowerCase();
+    return `Двигайтесь ${direction}${rest}`;
+  });
+}
+
 function normalizeInstructions(value) {
   if (!Array.isArray(value)) {
     return [];
@@ -94,7 +152,7 @@ function normalizeInstructions(value) {
 
   return value.map((instruction, index) => ({
     index: Number.isFinite(Number(instruction?.index)) ? Number(instruction.index) : index,
-    text: instruction?.text || instruction?.instruction || "Следуйте по маршруту",
+    text: normalizeInstructionText(instruction?.text || instruction?.instruction),
     distance_m: Number(instruction?.distance_m ?? instruction?.distance ?? 0) || 0,
     time_s: Number(instruction?.time_s ?? instruction?.time ?? 0) || 0,
     begin_shape_index: Number(instruction?.begin_shape_index ?? 0) || 0,
@@ -192,7 +250,7 @@ function normalizeRoute(route, index, profile, origin, destination) {
 
   return {
     id: route?.id ?? `${profile}-${variant}-${index}`,
-    label: route?.label ?? VARIANT_LABELS[variant],
+    label: normalizeRouteLabel(route?.label, variant),
     subtitle: route?.subtitle ?? VARIANT_SUBTITLES[profile]?.[variant] ?? "Подходящий вариант маршрута",
     type: "Feature",
     properties: {
@@ -206,6 +264,7 @@ function normalizeRoute(route, index, profile, origin, destination) {
       instructions: normalizeInstructions(route?.properties?.instructions ?? route?.instructions),
       bbox: route?.properties?.bbox ?? route?.bbox ?? null,
       source: route?.properties?.source ?? route?.source ?? "unknown",
+      score: route?.properties?.score ?? route?.score ?? null,
     },
     geometry,
   };
@@ -455,7 +514,7 @@ export function getNavigationHint(route) {
   const coordinates = flattenGeometryCoordinates(route?.geometry);
   if (coordinates.length < 3) {
     return {
-      title: "Следуйте по маршруту",
+      title: "Маршрут рассчитан",
       subtitle: "Маршрут уже рассчитан",
     };
   }
@@ -590,14 +649,14 @@ export function getInstructionIndexForShape(instructions, shapeIndex) {
 export function getInstructionPresentation(instruction, nextInstruction) {
   if (!instruction) {
     return {
-      title: "Следуйте по маршруту",
+      title: "Ожидаем следующий манёвр",
       subtitle: "Ожидаем GPS-позицию",
     };
   }
 
-  const distance = formatDistance(instruction.distance_m);
+  const distance = formatInstructionMeta(instruction);
   const street = instruction.street_names?.[0];
-  const nextText = nextInstruction?.text ? `Далее: ${nextInstruction.text}` : "Маршрут ведёт по реальным манёврам";
+  const nextText = nextInstruction?.text ? `Далее: ${nextInstruction.text}` : "До финиша";
 
   return {
     title: instruction.text,
@@ -615,6 +674,22 @@ export function formatDistance(distanceMeters) {
   }
 
   return `${(distanceMeters / 1000).toFixed(1)} км`;
+}
+
+export function formatInstructionMeta(instruction) {
+  const meters = Number(instruction?.distance_m ?? 0);
+  const distance = formatDistance(instruction?.distance_m);
+  const seconds = Number(instruction?.time_s ?? 0);
+  if (meters > 0 && meters < 25) {
+    return "Сейчас";
+  }
+
+  if (!seconds || seconds < SHORT_MANEUVER_SECONDS || meters < SHORT_MANEUVER_METERS) {
+    return distance;
+  }
+
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  return `${distance} • ${minutes} мин`;
 }
 
 export function formatCalories(calories) {

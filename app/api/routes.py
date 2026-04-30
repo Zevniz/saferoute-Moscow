@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from typing import Annotated, Any, List
 
-from fastapi import APIRouter, HTTPException, Path, Query, Response
+from fastapi import APIRouter, HTTPException, Path, Query, Request, Response
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.db import get_engine
 from app.core.metrics import render_prometheus
+from app.core.security import protect_geocode, protect_health, protect_metrics, protect_route, protect_telemetry_write, protect_tiles
 from app.schemas.routing import ErrorResponse, HealthResponse, ReverseResult, RouteMeta, RouteResponse, SearchResult
 from app.schemas.telemetry import SidewalkCellCollection, SidewalkTelemetryBatch, TelemetryIngestResponse
 from app.services.health import dependency_status
@@ -40,9 +41,13 @@ ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
     tags=["health"],
     summary="Check platform health",
 )
-def health(deep: bool = Query(True, description="Check per-profile route readiness in addition to core dependencies.")) -> HealthResponse:
+def health(
+    request: Request,
+    deep: bool = Query(True, description="Check per-profile route readiness in addition to core dependencies."),
+) -> HealthResponse:
     """Return dependency health and routing readiness."""
 
+    protect_health(request, deep=deep)
     return dependency_status(deep=deep)
 
 
@@ -61,9 +66,10 @@ def health(deep: bool = Query(True, description="Check per-profile route readine
         }
     },
 )
-def metrics() -> Response:
+def metrics(request: Request) -> Response:
     """Return local Prometheus metrics for the API gateway."""
 
+    protect_metrics(request)
     return Response(content=render_prometheus(), media_type="text/plain; version=0.0.4; charset=utf-8")
 
 
@@ -74,9 +80,10 @@ def metrics() -> Response:
     tags=["geocoding"],
     summary="Search places in Moscow",
 )
-def search(q: str = Query(..., min_length=2), limit: int = Query(5, ge=1, le=8)) -> List[SearchResult]:
+def search(request: Request, q: str = Query(..., min_length=2), limit: int = Query(5, ge=1, le=8)) -> List[SearchResult]:
     """Search for Moscow-biased places through Photon."""
 
+    protect_geocode(request)
     query = q.strip()
     if len(query) < 2:
         raise HTTPException(status_code=422, detail="search query must contain at least 2 non-whitespace characters")
@@ -90,9 +97,10 @@ def search(q: str = Query(..., min_length=2), limit: int = Query(5, ge=1, le=8))
     tags=["geocoding"],
     summary="Reverse geocode one point",
 )
-def reverse(lat: Latitude, lon: Longitude) -> ReverseResult:
+def reverse(request: Request, lat: Latitude, lon: Longitude) -> ReverseResult:
     """Reverse geocode one coordinate pair."""
 
+    protect_geocode(request)
     return reverse_place(lat, lon)
 
 
@@ -104,6 +112,7 @@ def reverse(lat: Latitude, lon: Longitude) -> ReverseResult:
     summary="Build real route candidates",
 )
 def api_route(
+    request: Request,
     lat1: Latitude,
     lon1: Longitude,
     lat2: Latitude,
@@ -114,6 +123,7 @@ def api_route(
 ) -> RouteResponse:
     """Build real route candidates for walk, bike, or car."""
 
+    protect_route(request)
     mode_value = normalize_route_mode(mode).value
     try:
         routes = build_route_set(profile, lat1, lon1, lat2, lon2, alternatives, mode=mode_value)
@@ -142,6 +152,7 @@ def api_route(
     summary="Compatibility alias for /api/route",
 )
 def legacy_route(
+    request: Request,
     lat1: Latitude,
     lon1: Longitude,
     lat2: Latitude,
@@ -152,7 +163,7 @@ def legacy_route(
 ) -> RouteResponse:
     """Temporary compatibility alias for `/api/route`."""
 
-    return api_route(lat1=lat1, lon1=lon1, lat2=lat2, lon2=lon2, profile=profile, mode=mode, alternatives=alternatives)
+    return api_route(request=request, lat1=lat1, lon1=lon1, lat2=lat2, lon2=lon2, profile=profile, mode=mode, alternatives=alternatives)
 
 
 @router.post(
@@ -162,9 +173,10 @@ def legacy_route(
     tags=["telemetry"],
     summary="Ingest sidewalk telemetry",
 )
-def sidewalk_samples(batch: SidewalkTelemetryBatch) -> TelemetryIngestResponse:
+def sidewalk_samples(request: Request, batch: SidewalkTelemetryBatch) -> TelemetryIngestResponse:
     """Ingest sidewalk-quality telemetry from scooters, robots, and edge devices."""
 
+    protect_telemetry_write(request)
     try:
         return ingest_sidewalk_samples(batch)
     except ValueError as exc:
@@ -181,11 +193,13 @@ def sidewalk_samples(batch: SidewalkTelemetryBatch) -> TelemetryIngestResponse:
     summary="List aggregated sidewalk H3 cells",
 )
 def sidewalk_cells(
+    request: Request,
     bbox: str = Query(..., description="minLon,minLat,maxLon,maxLat"),
     resolution: int = Query(9, ge=7, le=12),
 ) -> SidewalkCellCollection:
     """Return aggregated sidewalk-quality cells as GeoJSON."""
 
+    protect_geocode(request)
     try:
         return list_sidewalk_cells(bbox=bbox, resolution=resolution)
     except ValueError as exc:
@@ -203,9 +217,10 @@ def validate_tile_coordinates(z: int, x: int, y: int) -> None:
 
 
 @router.get("/tiles/{z}/{x}/{y}.pbf", include_in_schema=False)
-def get_tile(z: TileZoom, x: TileCoordinate, y: TileCoordinate) -> Response:
+def get_tile(request: Request, z: TileZoom, x: TileCoordinate, y: TileCoordinate) -> Response:
     """Return vector tiles for the safety graph."""
 
+    protect_tiles(request)
     validate_tile_coordinates(z, x, y)
     query = text(
         """

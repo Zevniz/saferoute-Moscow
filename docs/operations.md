@@ -114,7 +114,8 @@ scripts/data/import-safety-graph.sh
 The script:
 
 - starts compose PostGIS if needed,
-- drops stale compose copies of `moscow_network`,
+- validates `SOURCE_DATABASE_URL` with `npm run db:graph-source-check` before any target graph drop when an import is needed,
+- drops stale compose copies of `moscow_network` only during an explicit import or `FORCE_DB_IMPORT=true`,
 - copies the schema and data from `postgresql://artem@localhost:5433/artem`,
 - applies `scripts/prepare-production-db.sql`,
 - verifies row count, cost columns, and `moscow_network_nodes`.

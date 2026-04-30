@@ -44,6 +44,8 @@ Risky for production and deferred:
 
 ## Migration Plan
 
+The decision-complete P0 migration plan lives in [Migration Plan](MIGRATION_PLAN.md). Summary:
+
 Alembic is appropriate long term for ordinary application-owned relational schema, especially telemetry tables and future non-graph tables. It should not be introduced as a rushed replacement for every database asset because this repo also has:
 
 - PostGIS and pgRouting extensions initialized by Docker entrypoint SQL.
@@ -69,6 +71,8 @@ npm run db:telemetry-check
 ```
 
 ## Auth And Rate Limiting Plan
+
+The decision-complete P0 rollout plan lives in [Auth And Rate-Limit Rollout Plan](AUTH_RATE_LIMIT_PLAN.md). Summary:
 
 Current endpoint inventory:
 

@@ -23,6 +23,8 @@ If an engine returns fewer viable candidates, the API returns fewer candidates. 
 
 The public route variants remain `safe`, `balanced`, and `fast`. `mode` changes how the safety graph is scored; it does not create fake alternatives or placeholder instructions.
 
+Mode differences are limited by the real graph attributes sampled along each route. If two modes sample the same route geometry and the available edges only expose `safety_weight`, their score explanations may differ only slightly or not at all. That is expected for the first-stage scoring model and is preferable to inventing missing sidewalk, surface, lighting, slope, curb, crossing, or traffic facts.
+
 The scoring architecture lives in `app/services/scoring.py`:
 
 - `RoutingMode`: `safest`, `fastest`, `balanced`, `accessible`.
@@ -37,8 +39,11 @@ Routes include an additive `properties.score` object with:
 - `safety_index`
 - `factors`
 - `reasons[]`
+- `data_sources.enrichment`
 
 Existing clients can continue using `properties.safety_index`.
+
+In the public beta, `data_sources.enrichment.active` is `true` for `osm-moscow-oblast-tags-20260419` and `osm-moscow-oblast-crossings-20260419`. Active factors include `lighting_quality`, `sidewalk_presence`, `slope_percent`, `surface_quality`, `surface_type`, `crossing_count`, `controlled_crossing_count`, `uncontrolled_crossing_count`, and `crossing_risk`. Advanced factors such as curb risk, measured traffic intensity, pedestrian density, micromobility zones, default weather-sensitive risk, and telemetry confidence remain `null` or absent unless a real active dataset or provider supplies them.
 
 The current graph has real columns for:
 
@@ -56,7 +61,9 @@ Those columns support the current production scoring:
 - High penalty: narrow edges, high-speed or many-lane roads, track-like edges, high `safety_weight`.
 - Positive weight: wider edges, low-speed roads, bike-oriented `cycleway` edges for bike routing, footway/pedestrian edges for walking.
 
-The product scoring model also calls for factors such as missing sidewalks, cobblestone/gravel/broken pavement, curb density, crossings, lighting, slope, dedicated bike lanes, smooth asphalt, and traffic. Do not fake these. Add them only when the real graph has reliable columns or joined datasets for those facts. See [Scoring Roadmap](scoring-roadmap.md).
+The product scoring model also calls for factors such as missing sidewalks, cobblestone/gravel/broken pavement, curb density, crossings, lighting, slope, dedicated bike lanes, smooth asphalt, and traffic. The public beta currently activates only the OSM-derived factors documented in [Enrichment Data](ENRICHMENT_DATA.md). Do not fake missing factors. Add them only when the real graph has reliable columns or joined datasets for those facts. See [Scoring Roadmap](scoring-roadmap.md).
+
+The scoring code is prepared to read those expanded factors as optional real columns when they exist, including surface, sidewalk, curb, crossing, lighting, slope, traffic, pedestrian density, micromobility zone, weather-risk, and telemetry-confidence fields. If the columns or overlays are absent, the factors remain `null` or absent from explanations and do not affect route selection or score.
 
 ## Profiles
 
@@ -80,6 +87,8 @@ The first-stage score then adjusts that base with only available route attribute
 - highway class fractions
 
 Higher is safer. This keeps the score stable while still responding to the custom safety graph and giving clients explainable reasons.
+
+In the verified local self-hosted graph, `safety_weight` is present for all edges, while optional attributes are sparse: `width`, `est_width`, `maxspeed`, `lanes`, and `access` are available only on subsets of `moscow_network`. Routes may therefore have identical geometry across modes, especially when Valhalla and pgRouting do not find distinct viable alternatives from the available graph. The API should surface that honestly through `properties.score.reasons[]` rather than adding synthetic reasons.
 
 ## Instructions
 

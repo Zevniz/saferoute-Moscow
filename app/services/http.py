@@ -37,11 +37,15 @@ def request_json(
     *,
     params: Optional[Dict[str, Any]] = None,
     json_body: Optional[Any] = None,
+    timeout_seconds: float | None = None,
+    connect_timeout_seconds: float | None = None,
 ) -> Tuple[Dict[str, Any], float]:
     """Request JSON from one URL and return payload plus latency."""
 
     settings = get_settings()
-    client = get_http_client(settings.http_timeout_seconds, settings.http_connect_timeout_seconds, settings.http_user_agent)
+    effective_timeout = timeout_seconds if timeout_seconds is not None else settings.http_timeout_seconds
+    effective_connect_timeout = connect_timeout_seconds if connect_timeout_seconds is not None else settings.http_connect_timeout_seconds
+    client = get_http_client(effective_timeout, effective_connect_timeout, settings.http_user_agent)
     headers = {}
     request_id = request_id_var.get()
     if request_id:

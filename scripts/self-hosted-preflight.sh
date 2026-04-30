@@ -6,6 +6,7 @@ COMPOSE_FILE="${COMPOSE_FILE:-$ROOT_DIR/docker-compose.yml}"
 API_URL="${API_URL:-http://127.0.0.1:8000}"
 OSM_EXTRACT_FILE="${OSM_EXTRACT_FILE:-$ROOT_DIR/data/osm/moscow-oblast.osm.pbf}"
 OSM_SOURCE_FILE="${OSM_SOURCE_FILE:-$ROOT_DIR/data/osm/central-fed-district-latest.osm.pbf}"
+GRAPH_DUMP_FILE="${SAFEROUTE_GRAPH_DUMP_PATH:-${GRAPH_DUMP_FILE:-$ROOT_DIR/data/graph/moscow_network.dump}}"
 SOURCE_DATABASE_URL="${SOURCE_DATABASE_URL:-postgresql://artem@localhost:5433/artem}"
 TARGET_DATABASE_URL="${TARGET_DATABASE_URL:-postgresql://saferoute:saferoute_pass@127.0.0.1:5434/saferoute_db}"
 PSQL_BIN="${PSQL_BIN:-psql}"
@@ -74,18 +75,27 @@ check_db_table_count() {
 
 check_source_graph() {
   local count
+  if ! SOURCE_DATABASE_URL="$SOURCE_DATABASE_URL" PSQL_BIN="$PSQL_BIN" MIN_GRAPH_ROWS=1 bash "$ROOT_DIR/scripts/check-graph-source.sh" >/dev/null 2>&1; then
+    return 1
+  fi
   if ! count="$(check_db_table_count "$SOURCE_DATABASE_URL" "SELECT count(*) FROM public.moscow_network;")"; then
     return 1
   fi
-  if [[ ! "$count" =~ ^[0-9]+$ || "$count" -le 0 ]]; then
-    return 1
-  fi
-  ok "source DB has public.moscow_network with $count rows ($(redact_url "$SOURCE_DATABASE_URL"))"
+  ok "fresh bootstrap source DB is valid with public.moscow_network rows=$count ($(redact_url "$SOURCE_DATABASE_URL"))"
   return 0
+}
+
+check_graph_dump() {
+  if GRAPH_DUMP_FILE="$GRAPH_DUMP_FILE" bash "$ROOT_DIR/scripts/data/check-graph-dump.sh" >/dev/null 2>&1; then
+    ok "documented graph dump source and manifest verify: ${GRAPH_DUMP_FILE#$ROOT_DIR/}"
+    return 0
+  fi
+  return 1
 }
 
 check_target_graph() {
   local count
+  local graph_ready=true
   if ! count="$(check_db_table_count "$TARGET_DATABASE_URL" "SELECT count(*) FROM public.moscow_network;")"; then
     return 1
   fi
@@ -101,6 +111,7 @@ check_target_graph() {
     ok "compose DB has PostGIS and pgRouting extensions"
   else
     fail "compose DB is missing PostGIS and/or pgRouting extensions; recreate the compose DB volume or apply docker/postgres/init/01_extensions.sql to a real PostGIS database."
+    graph_ready=false
   fi
 
   local prepared_columns
@@ -109,6 +120,7 @@ check_target_graph() {
     ok "compose DB has prepared routing columns"
   else
     warn "compose DB has moscow_network but does not expose all prepared routing columns; run scripts/prepare-production-db.sql or npm run bootstrap:self-hosted."
+    graph_ready=false
   fi
 
   local nodes_count
@@ -117,9 +129,10 @@ check_target_graph() {
     ok "compose DB has public.moscow_network_nodes with $nodes_count rows"
   else
     warn "compose DB does not expose a populated public.moscow_network_nodes relation; run scripts/prepare-production-db.sql or npm run bootstrap:self-hosted to restore prepared routing metadata."
+    graph_ready=false
   fi
 
-  return 0
+  [[ "$graph_ready" == "true" ]]
 }
 
 cd "$ROOT_DIR"
@@ -128,6 +141,7 @@ echo "SafeRoute self-hosted preflight"
 echo "Root: $ROOT_DIR"
 echo "API_URL=$API_URL"
 echo "OSM_EXTRACT_FILE=${OSM_EXTRACT_FILE#$ROOT_DIR/}"
+echo "GRAPH_DUMP_FILE=${GRAPH_DUMP_FILE#$ROOT_DIR/}"
 echo "SOURCE_DATABASE_URL=$(redact_url "$SOURCE_DATABASE_URL")"
 echo "TARGET_DATABASE_URL=$(redact_url "$TARGET_DATABASE_URL")"
 echo "ALLOW_PUBLIC_SERVICE_FALLBACK=${ALLOW_PUBLIC_SERVICE_FALLBACK:-false}"
@@ -198,14 +212,45 @@ check_cmd "$PSQL_BIN" "Install PostgreSQL client tools or set PSQL_BIN." || true
 check_cmd "$PG_DUMP_BIN" "Install PostgreSQL client tools or set PG_DUMP_BIN." || true
 
 if have_cmd "$PSQL_BIN"; then
+  source_graph_ok=false
+  target_graph_ok=false
+  graph_dump_ok=false
+
   if check_source_graph; then
-    :
-  elif check_target_graph; then
-    warn "source DB is unavailable, but compose DB already has moscow_network. Full bootstrap imports from SOURCE_DATABASE_URL, so set it before rebuilding data."
-  elif [[ "$REQUIRE_SOURCE_DB" == "true" ]]; then
-    fail "public.moscow_network is not reachable in SOURCE_DATABASE_URL ($(redact_url "$SOURCE_DATABASE_URL")) and the compose DB does not already expose it. Full route verification needs real graph data; this script will not create fake data."
+    source_graph_ok=true
+  fi
+  if check_target_graph; then
+    target_graph_ok=true
+  fi
+  if check_graph_dump; then
+    graph_dump_ok=true
+  fi
+
+  if [[ "$target_graph_ok" == "true" ]]; then
+    ok "existing prepared compose graph is usable for npm run self-hosted:up and smoke checks"
+  fi
+
+  enrichment_schema="$(check_db_table_count "$TARGET_DATABASE_URL" "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('safety_enrichment_datasets','safety_edge_enrichment');" || true)"
+  if [[ "$enrichment_schema" == "2" ]]; then
+    ok "compose DB has app-owned enrichment schema"
   else
-    warn "source graph check skipped by SELF_HOSTED_PREFLIGHT_REQUIRE_SOURCE_DB=false. Smoke:self-hosted can still fail if compose PostGIS lacks public.moscow_network."
+    warn "compose DB does not expose the app-owned enrichment schema yet. Run npm run db:migrate before public-launch verification."
+  fi
+
+  if [[ "$source_graph_ok" != "true" ]]; then
+    if [[ "$target_graph_ok" == "true" ]]; then
+      if [[ "$graph_dump_ok" == "true" ]]; then
+        warn "source DB is unavailable, but compose DB is prepared and a documented graph dump exists. Rebuilds still require restoring that dump or setting SOURCE_DATABASE_URL."
+      else
+        warn "source DB is unavailable, but compose DB is prepared. Fresh bootstrap is blocked until SOURCE_DATABASE_URL points at a real graph source or GRAPH_DUMP_FILE is restored."
+      fi
+    elif [[ "$graph_dump_ok" == "true" ]]; then
+      fail "compose DB does not expose a usable graph and SOURCE_DATABASE_URL is invalid. Restore the real graph dump from ${GRAPH_DUMP_FILE#$ROOT_DIR/} or set SOURCE_DATABASE_URL, then rerun preflight."
+    elif [[ "$REQUIRE_SOURCE_DB" == "true" ]]; then
+      fail "fresh bootstrap is impossible: public.moscow_network is not reachable in SOURCE_DATABASE_URL ($(redact_url "$SOURCE_DATABASE_URL")), GRAPH_DUMP_FILE is missing (${GRAPH_DUMP_FILE#$ROOT_DIR/}), and the compose DB does not already expose a usable prepared graph."
+    else
+      warn "source graph check skipped by SELF_HOSTED_PREFLIGHT_REQUIRE_SOURCE_DB=false. Smoke:self-hosted can still fail if compose PostGIS lacks public.moscow_network."
+    fi
   fi
 fi
 

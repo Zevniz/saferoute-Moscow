@@ -1,0 +1,2 @@
+edge_id,confidence,observed_at,pedestrian_density,pedestrian_count,pedestrian_flow,source_category
+42,0.78,2026-04-28T10:00:00Z,0.62,340,1220,measured_counter_export

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
+
+RouteModeValue = Literal["safest", "fastest", "balanced", "accessible"]
 
 
 class ErrorResponse(BaseModel):
@@ -100,11 +102,12 @@ class RouteScoreReason(BaseModel):
 class RouteScoreDetails(BaseModel):
     """Detailed route score and factors used to calculate it."""
 
-    mode: str
+    mode: RouteModeValue
     total: int
     safety_index: int
     factors: Dict[str, Optional[float]]
     reasons: List[RouteScoreReason] = Field(default_factory=list)
+    data_sources: Dict[str, Any] = Field(default_factory=dict)
 
 
 class RouteProperties(BaseModel):
@@ -115,7 +118,7 @@ class RouteProperties(BaseModel):
     safety_index: int
     profile: str
     variant: str
-    mode: str = "safest"
+    mode: RouteModeValue = "safest"
     instructions: List[Instruction]
     bbox: Optional[List[float]] = None
     source: str
@@ -200,7 +203,7 @@ class RouteMeta(BaseModel):
     """Route response metadata."""
 
     profile: str
-    mode: str = "safest"
+    mode: RouteModeValue = "safest"
     origin: Dict[str, float]
     destination: Dict[str, float]
 

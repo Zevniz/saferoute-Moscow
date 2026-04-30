@@ -11,6 +11,7 @@ export function useSidewalkCells({ enabled, mapRef }) {
     if (!enabled) {
       setLoading(false);
       setError("");
+      setCells(null);
       return undefined;
     }
 

@@ -7,6 +7,10 @@ SCHEMA_FILE="$ROOT_DIR/docker/postgres/init/02_telemetry.sql"
 HOST_DATABASE_URL="${HOST_DATABASE_URL:-postgresql://artem@localhost:5433/artem}"
 COMPOSE_DATABASE_URL="${COMPOSE_DATABASE_URL:-postgresql://saferoute:saferoute_pass@127.0.0.1:5434/saferoute_db}"
 
+redact_url() {
+  sed -E 's#(postgres(ql)?://[^:/@]+):[^@]*@#\1:***@#' <<<"$1"
+}
+
 if ! command -v "$PSQL_BIN" >/dev/null 2>&1; then
   echo "psql not found. Set PSQL_BIN or install PostgreSQL client tools." >&2
   exit 1
@@ -20,7 +24,7 @@ if [[ -z "${DATABASE_URL:-}" ]]; then
   fi
 fi
 
-echo "Applying SafeRoute telemetry schema to $DATABASE_URL"
+echo "Applying SafeRoute telemetry schema to $(redact_url "$DATABASE_URL")"
 if ! "$PSQL_BIN" "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$SCHEMA_FILE"; then
   echo "" >&2
   echo "Telemetry schema apply failed." >&2

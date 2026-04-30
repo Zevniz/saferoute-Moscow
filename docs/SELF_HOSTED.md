@@ -84,10 +84,11 @@ scripts/data/download-osm.sh
 scripts/data/extract-moscow-oblast.sh
 ```
 
-The safety graph is not generated from fake data. It must already exist in `SOURCE_DATABASE_URL` as `public.moscow_network`. The import script copies it into the compose DB and then applies production graph preparation:
+The safety graph is not generated from fake data. It must either exist in `SOURCE_DATABASE_URL` as `public.moscow_network`, or be provided as a real `GRAPH_DUMP_FILE` created from a known-good database. The import/restore scripts copy it into the compose DB and then apply production graph preparation:
 
 ```bash
 scripts/data/import-safety-graph.sh
+scripts/data/restore-safety-graph.sh
 scripts/prepare-production-db.sql
 ```
 
@@ -105,13 +106,37 @@ The required base columns are documented in [Routing And Safety](routing-safety.
 Check source graph availability:
 
 ```bash
-psql "$SOURCE_DATABASE_URL" -Atqc "SELECT count(*) FROM public.moscow_network;"
+SOURCE_DATABASE_URL=postgresql://user:pass@host:5432/db npm run db:graph-source-check
 ```
 
 Check compose graph availability after import:
 
 ```bash
-psql "postgresql://saferoute:saferoute_pass@127.0.0.1:5434/saferoute_db" -Atqc "SELECT count(*) FROM public.moscow_network;"
+DATABASE_URL=postgresql://saferoute:saferoute_pass@127.0.0.1:5434/saferoute_db npm run db:graph-check
+```
+
+Recommended real dump format for disaster recovery:
+
+```bash
+DATABASE_URL=postgresql://user:pass@host:5432/db npm run db:graph-export
+```
+
+Restore only into an empty or intentionally rebuilt target database, then prepare and verify:
+
+```bash
+GRAPH_DUMP_FILE=data/graph/moscow_network.dump npm run db:graph-restore
+```
+
+Check whether a fresh server has a valid source before attempting bootstrap:
+
+```bash
+npm run bootstrap:check
+```
+
+Run isolated empty-volume bootstrap verification without deleting the working compose volumes:
+
+```bash
+npm run bootstrap:fresh
 ```
 
 ## Startup
@@ -164,6 +189,26 @@ Verify that the real database has the expected telemetry tables, primary keys, a
 
 ```bash
 DATABASE_URL=postgresql://saferoute:saferoute_pass@127.0.0.1:5434/saferoute_db npm run db:telemetry-check
+```
+
+Apply and verify app-owned migrations for telemetry/enrichment metadata:
+
+```bash
+DATABASE_URL=postgresql://saferoute:saferoute_pass@127.0.0.1:5434/saferoute_db npm run db:migrate
+DATABASE_URL=postgresql://saferoute:saferoute_pass@127.0.0.1:5434/saferoute_db npm run db:migration-check
+DATABASE_URL=postgresql://saferoute:saferoute_pass@127.0.0.1:5434/saferoute_db npm run db:enrichment-check
+```
+
+Verify that the real routing graph has the required PostGIS/pgRouting assets, prepared columns, nodes, indexes, and current scoring-column coverage:
+
+```bash
+DATABASE_URL=postgresql://saferoute:saferoute_pass@127.0.0.1:5434/saferoute_db npm run db:graph-check
+```
+
+Verify that a fresh-bootstrap source database is valid before import:
+
+```bash
+SOURCE_DATABASE_URL=postgresql://user:pass@host:5432/db npm run db:graph-source-check
 ```
 
 If `DATABASE_URL` is not set, the script uses the running compose DB on `127.0.0.1:5434` when it is reachable; otherwise it falls back to the host local default on `localhost:5433`.
@@ -311,6 +356,18 @@ The default `DATABASE_URL` points at host Postgres on `localhost:5433`. For comp
 ```bash
 DATABASE_URL=postgresql://saferoute:saferoute_pass@127.0.0.1:5434/saferoute_db npm run db:telemetry-schema
 ```
+
+`npm run db:graph-check` fails:
+
+- If `public.moscow_network` is missing, restore/import the real graph with `npm run bootstrap:self-hosted` and a valid `SOURCE_DATABASE_URL`.
+- If prepared routing columns or `public.moscow_network_nodes` are missing, run `scripts/prepare-production-db.sql` against the real target DB.
+- If optional scoring enrichment columns are missing, this is not a graph-check failure. Those product factors remain inactive until real data is loaded.
+
+`npm run db:graph-source-check` fails:
+
+- Set `SOURCE_DATABASE_URL` to a real source DB with `public.moscow_network`.
+- If using a dump instead of a source DB, restore that real dump into a database first; the check intentionally does not invent placeholder graph rows.
+- Required source columns are `id`, `u`, `v`, `highway`, `length`, `safety_weight`, and `geometry` with SRID `4326`.
 
 Full self-hosted smoke still fails after containers are up:
 
