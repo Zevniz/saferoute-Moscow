@@ -40,3 +40,6 @@ data/graph/release/
 .idea/
 .vscode/
 *.swp
+
+# AI agent skills
+.agents/
