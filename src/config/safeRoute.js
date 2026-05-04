@@ -1,7 +1,6 @@
 import {
-  Accessibility,
   Bike,
-  Car,
+  Footprints,
   Gauge,
   HelpCircle,
   Map,
@@ -24,22 +23,22 @@ export const INITIAL_VIEW_STATE = {
   bearing: -10,
 };
 
-export const MAP_STYLE = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
+export const MAP_STYLE = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json";
+export const MAP_STYLE_DARK = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
 export const FIGMA_DESIGN_URL = "https://www.figma.com/design/gkjKug87pDh4PmKIOVdKK7/iOS-and-iPadOS-26--Community-?node-id=215-105157&p=f&t=gXWxZ1gfEsQvfWiW-0";
 export const OFF_ROUTE_THRESHOLD_METERS = 85;
 export const OFF_ROUTE_SAMPLE_LIMIT = 3;
 
 export const PROFILE_OPTIONS = [
-  { id: "car", label: "Авто", shortLabel: "Авто", description: "Дорожный граф", icon: Car },
   { id: "walk", label: "Пешком", shortLabel: "Пешком", description: "Тротуары и переходы", icon: Route },
   { id: "bike", label: "Колёса", shortLabel: "Колёса", description: "Самокаты и велосипеды", icon: Bike },
 ];
 
 export const SCORING_MODE_OPTIONS = [
-  { id: "safest", label: "Безопасный", shortLabel: "Безопасно", description: "Меньше рискованных участков", icon: ShieldCheck },
+  { id: "safest", label: "Спокойнее", shortLabel: "Спокойнее", description: "Выше оценка по доступным данным", icon: ShieldCheck },
   { id: "fastest", label: "Быстрый", shortLabel: "Время", description: "Минимальное время в пути", icon: Gauge },
   { id: "balanced", label: "Баланс", shortLabel: "Баланс", description: "Темп и спокойствие", icon: Scale },
-  { id: "accessible", label: "Доступный", shortLabel: "Доступ", description: "Мягче к уклонам и ширине", icon: Accessibility },
+  { id: "accessible", label: "Доступный", shortLabel: "Доступ", description: "Мягче к уклонам и ширине", icon: Footprints },
 ];
 
 export const APP_TABS = [

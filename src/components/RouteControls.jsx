@@ -2,12 +2,17 @@ import { motion } from "framer-motion";
 
 import { PANEL_TRANSITION } from "../config/safeRoute";
 import { cn } from "../lib/ui";
+import { LiquidGlassShell } from "./ui/LiquidGlassShell";
 
 export function SegmentedControl({ label, options, value, onChange, compact = false }) {
   return (
     <fieldset className="segmented-control-group">
       <legend className="mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-outline">{label}</legend>
-      <div className={cn("segmented-control", compact ? "segmented-control-compact" : "")}>
+      <LiquidGlassShell
+        variant="toolbar"
+        tone="neutral"
+        className={cn("segmented-control", compact ? "segmented-control-compact" : "")}
+      >
         {options.map((option) => {
           const Icon = option.icon;
           const active = value === option.id;
@@ -30,7 +35,7 @@ export function SegmentedControl({ label, options, value, onChange, compact = fa
             </button>
           );
         })}
-      </div>
+      </LiquidGlassShell>
     </fieldset>
   );
 }

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Annotated, Any, List
 
 from fastapi import APIRouter, HTTPException, Path, Query, Request, Response
@@ -9,7 +10,8 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.db import get_engine
-from app.core.metrics import render_prometheus
+from app.core.metrics import inc, observe, render_prometheus
+from app.core.observability import log_event
 from app.core.security import protect_geocode, protect_health, protect_metrics, protect_route, protect_telemetry_write, protect_tiles
 from app.schemas.routing import ErrorResponse, HealthResponse, ReverseResult, RouteMeta, RouteResponse, SearchResult
 from app.schemas.telemetry import SidewalkCellCollection, SidewalkTelemetryBatch, TelemetryIngestResponse
@@ -80,7 +82,7 @@ def metrics(request: Request) -> Response:
     tags=["geocoding"],
     summary="Search places in Moscow",
 )
-def search(request: Request, q: str = Query(..., min_length=2), limit: int = Query(5, ge=1, le=8)) -> List[SearchResult]:
+def search(request: Request, q: str = Query(..., min_length=2, max_length=120), limit: int = Query(5, ge=1, le=8)) -> List[SearchResult]:
     """Search for Moscow-biased places through Photon."""
 
     protect_geocode(request)
@@ -125,23 +127,56 @@ def api_route(
 
     protect_route(request)
     mode_value = normalize_route_mode(mode).value
+    started = time.perf_counter()
+    outcome = "error"
+    route_count = 0
+    error_type: str | None = None
     try:
-        routes = build_route_set(profile, lat1, lon1, lat2, lon2, alternatives, mode=mode_value)
-    except SQLAlchemyError as exc:
-        raise HTTPException(status_code=503, detail="Не удалось обогатить маршруты данными безопасности") from exc
+        try:
+            routes = build_route_set(profile, lat1, lon1, lat2, lon2, alternatives, mode=mode_value)
+        except SQLAlchemyError as exc:
+            outcome = "db_error"
+            error_type = exc.__class__.__name__
+            raise HTTPException(status_code=503, detail="Не удалось обогатить маршруты данными безопасности") from exc
+        except HTTPException as exc:
+            outcome = f"http_{exc.status_code}"
+            error_type = exc.__class__.__name__
+            raise
+        except Exception as exc:
+            error_type = exc.__class__.__name__
+            raise
 
-    if not routes:
-        raise HTTPException(status_code=404, detail="Маршрут не найден для выбранного режима")
+        if not routes:
+            outcome = "no_route"
+            raise HTTPException(status_code=404, detail="Маршрут не найден для выбранного режима")
 
-    return RouteResponse(
-        routes=routes,
-        meta=RouteMeta(
-            profile=profile,
-            mode=mode_value,
-            origin={"lat": lat1, "lon": lon1},
-            destination={"lat": lat2, "lon": lon2},
-        ),
-    )
+        outcome = "ok"
+        route_count = len(routes)
+        return RouteResponse(
+            routes=routes,
+            meta=RouteMeta(
+                profile=profile,
+                mode=mode_value,
+                origin={"lat": lat1, "lon": lon1},
+                destination={"lat": lat2, "lon": lon2},
+            ),
+        )
+    finally:
+        duration_ms = round((time.perf_counter() - started) * 1000, 2)
+        labels: dict[str, object] = {"profile": profile, "mode": mode_value, "outcome": outcome}
+        inc("saferoute_route_requests_total", labels)
+        observe("saferoute_route_request_duration_ms", duration_ms, labels)
+        log_payload: dict[str, object] = {
+            "profile": profile,
+            "mode": mode_value,
+            "alternatives": alternatives,
+            "outcome": outcome,
+            "route_count": route_count,
+            "duration_ms": duration_ms,
+        }
+        if error_type:
+            log_payload["error_type"] = error_type
+        log_event("route_request", **log_payload)
 
 
 @router.get(

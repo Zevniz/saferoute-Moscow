@@ -133,7 +133,7 @@ class RouteFeature(BaseModel):
         json_schema_extra={
             "example": {
                 "id": "walk-safe",
-                "label": "Наиболее безопасный",
+                "label": "С более высокой оценкой",
                 "subtitle": "Маршрут с приоритетом более спокойных пешеходных участков",
                 "type": "Feature",
                 "properties": {
@@ -217,7 +217,7 @@ class RouteResponse(BaseModel):
                 "routes": [
                     {
                         "id": "walk-safe",
-                        "label": "Наиболее безопасный",
+                        "label": "С более высокой оценкой",
                         "subtitle": "Маршрут с приоритетом более спокойных пешеходных участков",
                         "type": "Feature",
                         "properties": {
@@ -304,6 +304,16 @@ class ProfileReadiness(BaseModel):
     latency_ms: Optional[float] = None
 
 
+class HealthRuntime(BaseModel):
+    """Runtime readiness metadata that clarifies production-like state."""
+
+    environment: str = "development"
+    public_fallback_allowed: bool = False
+    production_like: bool = True
+    readiness: Literal["self_hosted_ready", "local_dev_ready", "dev_fallback", "degraded", "unknown"] = "unknown"
+    detail: Optional[str] = None
+
+
 class HealthResponse(BaseModel):
     """Health endpoint response."""
 
@@ -326,6 +336,13 @@ class HealthResponse(BaseModel):
                     "bike": {"status": "ok", "detail": None, "latency_ms": 118.1},
                     "car": {"status": "ok", "detail": None, "latency_ms": 109.3},
                 },
+                "runtime": {
+                    "environment": "production",
+                    "public_fallback_allowed": False,
+                    "production_like": True,
+                    "readiness": "self_hosted_ready",
+                    "detail": "All checked dependencies are primary self-hosted services.",
+                },
             }
         }
     )
@@ -333,3 +350,4 @@ class HealthResponse(BaseModel):
     status: str
     services: Dict[str, DependencyStatus]
     profiles: Dict[str, ProfileReadiness] = Field(default_factory=dict)
+    runtime: HealthRuntime = Field(default_factory=HealthRuntime)

@@ -19,7 +19,7 @@ def fake_route_feature(profile: str = "walk", mode: str = "safest") -> RouteFeat
     )
     return RouteFeature(
         id=f"{profile}-safe",
-        label="Наиболее безопасный",
+        label="С более высокой оценкой",
         subtitle="Маршрут с учетом доступности",
         properties=RouteProperties(
             distance_m=1000,
@@ -64,6 +64,76 @@ def test_public_openapi_paths_do_not_require_authentication():
     ]:
         operation = spec["paths"][path][method]
         assert "security" not in operation
+
+
+def test_route_rejects_invalid_coordinates_before_routing(monkeypatch):
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("build_route_set must not run for invalid coordinates")
+
+    monkeypatch.setattr("app.api.routes.build_route_set", fail_if_called)
+    client = TestClient(app)
+
+    response = client.get(
+        "/api/route?lat1=91&lon1=37.6173&lat2=55.7298&lon2=37.6030&profile=walk&mode=safest"
+    )
+
+    assert response.status_code == 422
+
+
+def test_route_rejects_invalid_profile_before_routing(monkeypatch):
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("build_route_set must not run for invalid profile")
+
+    monkeypatch.setattr("app.api.routes.build_route_set", fail_if_called)
+    client = TestClient(app)
+
+    response = client.get(
+        "/api/route?lat1=55.7558&lon1=37.6173&lat2=55.7298&lon2=37.6030&profile=scooter&mode=safest"
+    )
+
+    assert response.status_code == 422
+
+
+def test_search_rejects_overlong_query_before_dependency_call(monkeypatch):
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("search_places must not run for overlong queries")
+
+    monkeypatch.setattr("app.api.routes.search_places", fail_if_called)
+    client = TestClient(app)
+
+    response = client.get(f"/api/search?q={'м' * 121}&limit=5")
+
+    assert response.status_code == 422
+
+
+def test_route_operational_observability_does_not_log_coordinates(monkeypatch):
+    events = []
+    counters = []
+    observations = []
+
+    def fake_build_route_set(profile, lat1, lon1, lat2, lon2, alternatives, *, mode):
+        return [fake_route_feature(profile=profile, mode=mode)]
+
+    monkeypatch.setattr("app.api.routes.build_route_set", fake_build_route_set)
+    monkeypatch.setattr("app.api.routes.log_event", lambda event, **payload: events.append((event, payload)))
+    monkeypatch.setattr("app.api.routes.inc", lambda name, labels=None, amount=1.0: counters.append((name, labels, amount)))
+    monkeypatch.setattr("app.api.routes.observe", lambda name, value, labels=None: observations.append((name, value, labels)))
+    client = TestClient(app)
+
+    response = client.get(
+        "/api/route?lat1=55.7558&lon1=37.6173&lat2=55.7298&lon2=37.6030&profile=walk&mode=safest"
+    )
+
+    assert response.status_code == 200
+    assert ("saferoute_route_requests_total", {"profile": "walk", "mode": "safest", "outcome": "ok"}, 1.0) in counters
+    assert any(name == "saferoute_route_request_duration_ms" for name, _, _ in observations)
+    route_event = next(payload for event, payload in events if event == "route_request")
+    assert route_event["outcome"] == "ok"
+    assert route_event["route_count"] == 1
+    assert "lat1" not in route_event
+    assert "lon1" not in route_event
+    assert "origin" not in route_event
+    assert "destination" not in route_event
 
 
 def test_optional_metrics_api_key_is_disabled_by_default():
@@ -375,7 +445,7 @@ def test_route_response_includes_requested_mode(monkeypatch):
         return [
             RouteFeature(
                 id=f"{profile}-safe",
-                label="Наиболее безопасный",
+                label="С более высокой оценкой",
                 subtitle="Маршрут с учетом доступности",
                 properties=RouteProperties(
                     distance_m=1000,

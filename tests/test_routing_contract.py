@@ -4,6 +4,7 @@ from app.core.config import Settings
 from app.schemas.routing import Instruction, RouteFeature, RouteProperties
 from app.services.routing import (
     _ROUTE_CACHE,
+    PROFILE_FILTER_CANDIDATES,
     assign_route_variants,
     build_safe_route_query,
     build_route_set,
@@ -244,8 +245,8 @@ def test_route_set_keeps_valhalla_routes_when_safety_graph_is_down(monkeypatch):
     routes = build_route_set("walk", 55.7001, 37.1001, 55.7101, 37.1101, 3, mode="safest")
 
     assert routes
-    assert routes[0].label == "Маршрут Valhalla"
-    assert "PostGIS-оценка безопасности" in routes[0].subtitle
+    assert routes[0].label == "Маршрут без оценки данных"
+    assert "оценка по локальным данным" in routes[0].subtitle
     assert routes[0].properties.safety_index == 50
     assert routes[0].properties.score is None
     assert "unscored" in routes[0].properties.source
@@ -438,3 +439,14 @@ def test_fetch_safe_geometry_falls_back_when_bounded_has_no_route(monkeypatch):
         ("bounded", "geometry && ST_MakeEnvelope(1, 2, 3, 4, 4326)"),
         ("fallback", None),
     ]
+
+
+def test_car_profile_never_uses_soft_sidewalk_filter():
+    car_filters = PROFILE_FILTER_CANDIDATES["car"]
+
+    assert len(car_filters) == 1
+    assert "footway" in car_filters[0]
+    assert "path" in car_filters[0]
+    assert "pedestrian" in car_filters[0]
+    assert "cycleway" in car_filters[0]
+    assert all("NOT LIKE '%%steps%%'" != " ".join(filter_sql.split()) for filter_sql in car_filters)

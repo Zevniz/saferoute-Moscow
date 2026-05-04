@@ -45,14 +45,14 @@ PROFILE_SPEEDS = {"walk": 4.8, "bike": 14.0, "car": 28.0}
 VALHALLA_COSTING = {"walk": "pedestrian", "bike": "bicycle", "car": "auto"}
 VARIANT_ORDER = ["safe", "balanced", "fast"]
 VARIANT_LABELS = {
-    "safe": "Наиболее безопасный",
+    "safe": "С более высокой оценкой",
     "balanced": "Сбалансированный",
     "fast": "Самый быстрый",
 }
 VARIANT_SUBTITLES = {
     "walk": {
         "safe": "Маршрут с приоритетом более спокойных пешеходных участков",
-        "balanced": "Хороший компромисс между темпом и безопасностью",
+        "balanced": "Хороший компромисс между темпом и спокойствием",
         "fast": "Минимальное время в пути пешком",
     },
     "bike": {
@@ -88,7 +88,7 @@ PROFILE_FILTERS = {
 PROFILE_FILTER_CANDIDATES = {
     "walk": [PROFILE_FILTERS["walk"]],
     "bike": [PROFILE_FILTERS["bike"]],
-    "car": [PROFILE_FILTERS["car"], "LOWER(COALESCE(highway, '')) NOT LIKE '%%steps%%'"],
+    "car": [PROFILE_FILTERS["car"]],
 }
 _ROUTE_CACHE: OrderedDict[Tuple[Any, ...], Tuple[float, List[RouteFeature]]] = OrderedDict()
 _NETWORK_COLUMNS: Optional[set[str]] = None
@@ -1067,8 +1067,8 @@ def build_route_feature(profile: str, variant: str, route_data: Dict[str, Any], 
     label = VARIANT_LABELS[variant]
     subtitle = VARIANT_SUBTITLES[profile][variant]
     if is_unscored_fallback:
-        label = "Маршрут Valhalla" if variant == "safe" else "Альтернатива Valhalla"
-        subtitle = "Навигация доступна, но PostGIS-оценка безопасности сейчас недоступна"
+        label = "Маршрут без оценки данных" if variant == "safe" else "Альтернатива без оценки данных"
+        subtitle = "Навигация доступна, но оценка по локальным данным сейчас недоступна"
 
     return RouteFeature(
         id=f"{profile}-{variant}",

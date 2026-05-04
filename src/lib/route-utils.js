@@ -5,7 +5,7 @@ const PROFILE_SPEEDS = {
 };
 
 const VARIANT_LABELS = {
-  safe: "Наиболее безопасный",
+  safe: "С более высокой оценкой",
   balanced: "Сбалансированный",
   fast: "Самый быстрый",
 };
@@ -18,7 +18,7 @@ const VARIANT_SUBTITLES = {
   },
   bike: {
     safe: "Приоритет спокойным улицам",
-    balanced: "Баланс темпа и безопасности на дороге",
+    balanced: "Баланс темпа и дорожного комфорта",
     fast: "Быстрее добраться на велосипеде",
   },
   car: {
@@ -52,6 +52,137 @@ const DIRECTION_PHRASES = {
 const ROUTE_DIRECTIONS_PATTERN =
   "(северо-восток|северо-запад|юго-восток|юго-запад|север|юг|восток|запад)";
 const ROUTE_DIRECTION_TAIL_PATTERN = "(\\s+.*|[.,!?].*|$)";
+
+const SCORE_REASON_COPY = {
+  safety_weight: {
+    label: "базовый граф",
+    concern: "Основа маршрута",
+    timeline: "Маршрут рассчитан по проверенному графу Москвы.",
+    tone: "neutral",
+  },
+  walk_friendly_edges: {
+    label: "больше пешеходных участков",
+    concern: "Спокойствие",
+    timeline: "Есть участки, более дружелюбные к пешему движению.",
+    tone: "positive",
+  },
+  cycleway_edges: {
+    label: "есть велоинфраструктура",
+    concern: "Колёса",
+    timeline: "Маршрут использует участки, подходящие для велосипеда или самоката.",
+    tone: "positive",
+  },
+  high_speed_or_lanes: {
+    label: "рядом более активная дорога",
+    concern: "Дорожная среда",
+    timeline: "По пути есть участки с большей дорожной экспозицией.",
+    tone: "caution",
+  },
+  narrow_width: {
+    label: "узкие участки",
+    concern: "Комфорт",
+    timeline: "По пути возможны более узкие отрезки.",
+    tone: "caution",
+  },
+  narrow_sidewalk_width: {
+    label: "узкий тротуар",
+    concern: "Комфорт",
+    timeline: "Есть участки, где тротуар может быть теснее.",
+    tone: "caution",
+  },
+  wide_width: {
+    label: "широкий участок",
+    concern: "Комфорт",
+    timeline: "Часть маршрута проходит по более широким участкам.",
+    tone: "positive",
+  },
+  bad_surface: {
+    label: "сложное покрытие",
+    concern: "Покрытие",
+    timeline: "OSM отмечает покрытие, которое может быть менее комфортным.",
+    tone: "caution",
+  },
+  smooth_surface: {
+    label: "ровное покрытие",
+    concern: "Покрытие",
+    timeline: "OSM отмечает ровное или асфальтовое покрытие на значимой части пути.",
+    tone: "positive",
+  },
+  missing_sidewalk: {
+    label: "не везде есть тротуар",
+    concern: "Тротуары",
+    timeline: "OSM отмечает участки без явного тротуара.",
+    tone: "risk",
+  },
+  many_crossings: {
+    label: "много переходов",
+    concern: "Переходы",
+    timeline: "По пути есть несколько переходов из активного OSM-слоя.",
+    tone: "caution",
+  },
+  poor_lighting: {
+    label: "слабое освещение",
+    concern: "Освещение",
+    timeline: "OSM lit-теги показывают участки с плохим или отсутствующим освещением.",
+    tone: "caution",
+  },
+  good_lighting: {
+    label: "лучше освещено",
+    concern: "Освещение",
+    timeline: "OSM lit-теги показывают хорошее освещение на значимой части пути.",
+    tone: "positive",
+  },
+  steep_slope: {
+    label: "заметный уклон",
+    concern: "Уклон",
+    timeline: "На маршруте есть уклон из OSM incline-данных.",
+    tone: "caution",
+  },
+  low_traffic: {
+    label: "спокойнее дорога",
+    concern: "Дорожная среда",
+    timeline: "Граф указывает на более спокойную дорожную среду.",
+    tone: "positive",
+  },
+  road_exposure_proxy: {
+    label: "дорожная экспозиция",
+    concern: "Дорожная среда",
+    timeline: "Это не измеренный трафик, а дорожная экспозиция из графа.",
+    tone: "caution",
+  },
+  weather_sensitive_risk: {
+    label: "погодный риск",
+    concern: "Погода",
+    timeline: "Open-Meteo вернул погодный риск для маршрута.",
+    tone: "caution",
+  },
+  telemetry_confidence: {
+    label: "реальные наблюдения",
+    concern: "Покрытие данных",
+    timeline: "Есть реальные агрегированные наблюдения для части маршрута.",
+    tone: "positive",
+  },
+};
+
+const INACTIVE_LAYER_COPY = [
+  "бордюры",
+  "официальные зоны СИМ",
+  "измеренный трафик",
+  "плотность пешеходов",
+  "телеметрия",
+];
+
+const ACTIVE_FACTOR_LABELS = {
+  surface_type: "тип покрытия",
+  surface_quality: "качество покрытия",
+  sidewalk_presence: "тротуары",
+  lighting_quality: "освещение по OSM",
+  slope_percent: "уклон по OSM",
+  crossing_count: "переходы",
+  controlled_crossing_count: "регулируемые переходы",
+  uncontrolled_crossing_count: "нерегулируемые переходы",
+  crossing_risk: "риск переходов",
+};
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -698,6 +829,205 @@ export function formatCalories(calories) {
   }
 
   return `${Math.round(calories)} kcal`;
+}
+
+function publicReasonCopy(reason) {
+  return SCORE_REASON_COPY[reason?.code] ?? {
+    label: reason?.code?.replaceAll("_", " ") ?? "фактор маршрута",
+    concern: "Маршрут",
+    timeline: "API вернул дополнительный фактор оценки.",
+    tone: reason?.impact === "positive" ? "positive" : reason?.impact === "penalty" ? "caution" : "neutral",
+  };
+}
+
+function visibleScoreReasons(score) {
+  const reasons = Array.isArray(score?.reasons) ? score.reasons : [];
+  return reasons.filter((reason) => reason?.code && reason.code !== "safety_weight");
+}
+
+export function getRouteConfidence(route) {
+  const score = route?.properties?.score;
+  if (!score) {
+    return {
+      value: null,
+      label: "После расчёта",
+      description: "Покрытие данных появится вместе с оценкой маршрута.",
+      tone: "neutral",
+      caveat: "Это не гарантия безопасности.",
+    };
+  }
+
+  const factors = score.factors ?? {};
+  const enrichment = score.data_sources?.enrichment;
+  const weather = score.data_sources?.weather;
+  const telemetry = score.data_sources?.telemetry;
+  const activeFactors = Array.isArray(enrichment?.active_factors) ? enrichment.active_factors : [];
+  const enrichmentConfidence = typeof factors.avg_enrichment_confidence === "number" ? factors.avg_enrichment_confidence : null;
+  const telemetryConfidence = typeof factors.avg_telemetry_confidence === "number" ? factors.avg_telemetry_confidence : null;
+
+  let value = 42;
+  if (enrichment?.active) {
+    value += 22;
+  }
+  value += Math.min(16, activeFactors.length * 2);
+  if (activeFactors.some((factor) => factor.includes("crossing"))) {
+    value += 7;
+  }
+  if (typeof enrichmentConfidence === "number") {
+    value += Math.round(enrichmentConfidence * 12);
+  }
+  if (weather?.active) {
+    value += 4;
+  }
+  if (telemetry?.active && typeof telemetryConfidence === "number") {
+    value += Math.round(telemetryConfidence * 8);
+  }
+
+  const bounded = clamp(Math.round(value), 0, 96);
+  const label = bounded >= 82 ? "Высокая" : bounded >= 64 ? "Средняя" : "Ограниченная";
+
+  return {
+    value: bounded,
+    label,
+    tone: bounded >= 82 ? "positive" : bounded >= 64 ? "neutral" : "caution",
+    description:
+      bounded >= 82
+        ? "Оценку поддерживают активные OSM-слои и переходы."
+        : "Оценка честно ограничена доступными слоями; отсутствующие данные не подменяются.",
+    caveat: "Даже высокая уверенность данных не гарантирует безопасную обстановку на месте.",
+  };
+}
+
+export function getRouteInsight(route, routes = []) {
+  const score = route?.properties?.score;
+  const reasons = visibleScoreReasons(score);
+  const topReason = reasons[0] ? publicReasonCopy(reasons[0]) : null;
+  const confidence = getRouteConfidence(route);
+  const scoreTotal = typeof score?.total === "number" ? score.total : route?.properties?.safety_index ?? null;
+  const otherRoutes = routes.filter((candidate) => candidate?.id !== route?.id);
+  const safestScore = Math.max(...routes.map((candidate) => candidate?.properties?.score?.total ?? candidate?.properties?.safety_index ?? 0), 0);
+  const fastestMinutes = Math.min(...routes.map((candidate) => candidate?.properties?.estimated_mins ?? Infinity));
+  const selectedMinutes = route?.properties?.estimated_mins ?? null;
+  const minuteDelta = Number.isFinite(fastestMinutes) && selectedMinutes ? selectedMinutes - fastestMinutes : 0;
+
+  let comparison = "Сравнение появится, когда API вернёт несколько вариантов.";
+  if (otherRoutes.length > 0 && scoreTotal === safestScore && minuteDelta > 1) {
+    comparison = `Этот вариант спокойнее по оценке, но примерно на ${minuteDelta} мин дольше самого быстрого.`;
+  } else if (otherRoutes.length > 0 && selectedMinutes === fastestMinutes && scoreTotal < safestScore) {
+    comparison = "Это самый быстрый вариант, но его оценка ниже, чем у более спокойной альтернативы.";
+  } else if (otherRoutes.length > 0 && scoreTotal === safestScore) {
+    comparison = "Это один из вариантов с самой высокой оценкой среди найденных маршрутов.";
+  } else if (otherRoutes.length > 0) {
+    comparison = "Этот вариант балансирует время и спокойствие относительно остальных маршрутов.";
+  }
+
+  const reasonPhrase = reasons
+    .slice(0, 2)
+    .map((reason) => publicReasonCopy(reason).label)
+    .join(" и ");
+
+  return {
+    confidence,
+    topReasonLabel: topReason?.label ?? "оценка по реальным данным",
+    comparison,
+    brief: reasonPhrase
+      ? `По доступным данным маршрут выглядит спокойнее: учтены ${reasonPhrase}.`
+      : "Маршрут рассчитан по реальному графу; дополнительных факторов для краткого объяснения API не вернул.",
+    limitation: "Оценка помогает сравнить варианты, но не является гарантией безопасности.",
+    unavailable: INACTIVE_LAYER_COPY,
+  };
+}
+
+export function getRouteKnowledge(route) {
+  const score = route?.properties?.score;
+  const enrichment = score?.data_sources?.enrichment;
+  const weather = score?.data_sources?.weather;
+  const activeFactors = Array.isArray(enrichment?.active_factors) ? enrichment.active_factors : [];
+  const known = [];
+
+  known.push("геометрия, время и расстояние реального маршрута");
+
+  if (score) {
+    known.push("оценка и причины, которые вернул API");
+  }
+
+  const activeLabels = activeFactors
+    .map((factor) => ACTIVE_FACTOR_LABELS[factor])
+    .filter(Boolean);
+
+  if (enrichment?.active && activeLabels.length) {
+    known.push(`активные OSM-слои: ${activeLabels.slice(0, 5).join(", ")}`);
+  }
+
+  if (activeFactors.some((factor) => factor.includes("crossing"))) {
+    known.push("переходы из активного OSM-слоя");
+  }
+
+  if (weather?.active) {
+    known.push("текущая погода от Open-Meteo для маршрута");
+  }
+
+  const instructions = route?.properties?.instructions ?? [];
+  if (instructions.length) {
+    known.push("первые манёвры и финишные подсказки маршрута");
+  }
+
+  return {
+    known: [...new Set(known)].slice(0, 5),
+    unknown: INACTIVE_LAYER_COPY.map((layer) => `${layer}: нет активного проверенного источника`),
+    note: "Неизвестные риски не считаются безопасными и не добавляются в оценку.",
+  };
+}
+
+export function getRouteTimeline(route) {
+  const instructions = route?.properties?.instructions ?? [];
+  const score = route?.properties?.score;
+  const reasons = visibleScoreReasons(score);
+  const timeline = [];
+
+  if (instructions[0]) {
+    timeline.push({
+      id: "start",
+      title: "Старт",
+      description: instructions[0].text,
+      meta: formatInstructionMeta(instructions[0]),
+      tone: "neutral",
+    });
+  }
+
+  reasons.slice(0, 4).forEach((reason, index) => {
+    const copy = publicReasonCopy(reason);
+    timeline.push({
+      id: `${reason.code}-${index}`,
+      title: copy.concern,
+      description: copy.timeline,
+      meta: reason.impact === "positive" ? "помогает оценке" : reason.impact === "penalty" ? "учтено в оценке" : "информация",
+      tone: copy.tone,
+    });
+  });
+
+  if (instructions.length > 1) {
+    const finalInstruction = instructions[instructions.length - 1];
+    timeline.push({
+      id: "finish",
+      title: "Финиш",
+      description: finalInstruction.text,
+      meta: formatInstructionMeta(finalInstruction),
+      tone: "neutral",
+    });
+  }
+
+  if (!timeline.length) {
+    timeline.push({
+      id: "empty",
+      title: "Маршрут рассчитан",
+      description: "Подробности появятся после расчёта реального маршрута.",
+      meta: "без выдуманных факторов",
+      tone: "neutral",
+    });
+  }
+
+  return timeline;
 }
 
 export function getDefaultRouteId(routes, profile) {

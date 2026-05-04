@@ -6,6 +6,7 @@ const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 const consoleIssues = [];
 const pageErrors = [];
+const feedbackNetworkRequests = [];
 
 page.on("console", (message) => {
   if (["error", "warning"].includes(message.type())) {
@@ -13,10 +14,24 @@ page.on("console", (message) => {
   }
 });
 page.on("pageerror", (error) => pageErrors.push(error.message));
+page.on("request", (request) => {
+  const url = request.url().toLowerCase();
+  if (url.includes("telemetry") || url.includes("feedback")) {
+    feedbackNetworkRequests.push(`${request.method()} ${request.url()}`);
+  }
+});
 
 try {
   const response = await page.goto(appUrl, { waitUntil: "domcontentloaded", timeout: 20000 });
   await page.waitForTimeout(1200);
+  const initialGlassControls = await page.locator("[data-liquid-glass]").count();
+  if (initialGlassControls < 3) {
+    throw new Error("liquid glass controls are missing from the map-first home screen");
+  }
+  const initialPanelClass = await page.locator(".planner-panel").first().getAttribute("class", { timeoutMs: 12000 });
+  if (!initialPanelClass?.includes("pointer-events-none")) {
+    throw new Error("initial home screen should be map-first with the route panel closed");
+  }
   const openSections = async () => {
     await page.getByRole("button", { name: /Открыть разделы|Закрыть разделы/ }).click();
     const sections = page.getByRole("navigation", { name: "Разделы SafeRoute" });
@@ -46,7 +61,29 @@ try {
   if (routeCardTexts.some((text) => /Данные OSM|Valhalla/i.test(text))) {
     throw new Error("route card shows technical source labels");
   }
-  await page.getByText("Почему такая оценка").first().click();
+  const routeDetailsSummary = page.locator("summary.route-details-summary").first();
+  await routeDetailsSummary.scrollIntoViewIfNeeded();
+  await routeDetailsSummary.click();
+  await page.locator(".route-insight-panel").first().waitFor({ state: "visible", timeout: 12000 });
+  if (await page.locator(".route-insight-panel [data-liquid-glass]").count()) {
+    throw new Error("liquid glass must not wrap long trust/explainability sections");
+  }
+  await page.getByText("Почему этот маршрут").first().waitFor({ state: "visible", timeout: 12000 });
+  await page.getByText("Уверенность данных").first().waitFor({ state: "visible", timeout: 12000 });
+  await page.getByText("Оценка маршрута").first().waitFor({ state: "visible", timeout: 12000 });
+  await page.getByText("Неизвестные риски").first().waitFor({ state: "visible", timeout: 12000 });
+  await page.getByText("Что мы знаем").first().waitFor({ state: "visible", timeout: 12000 });
+  await page.getByText("Что мы не знаем").first().waitFor({ state: "visible", timeout: 12000 });
+  await page.getByText("не гарантия").first().waitFor({ state: "visible", timeout: 12000 });
+  await page.getByText("Что по пути").first().waitFor({ state: "visible", timeout: 12000 });
+  await page.getByText("Заметка о маршруте").first().waitFor({ state: "visible", timeout: 12000 });
+  await page.getByText("не влияет на маршруты").first().waitFor({ state: "visible", timeout: 12000 });
+  const feedbackRequestStart = feedbackNetworkRequests.length;
+  await page.getByRole("button", { name: "Было спокойно" }).first().click();
+  await page.waitForTimeout(350);
+  if (feedbackNetworkRequests.length > feedbackRequestStart) {
+    throw new Error(`local feedback sent a network request: ${feedbackNetworkRequests.slice(feedbackRequestStart).join(", ")}`);
+  }
   await page.getByText("Данные OSM").first().waitFor({ state: "visible", timeout: 12000 });
   await page.getByText("Оценка учитывает").first().waitFor({ state: "visible", timeout: 12000 });
   await page.getByText("© OpenStreetMap contributors").first().waitFor({ state: "visible", timeout: 12000 });
@@ -69,8 +106,9 @@ try {
       throw new Error(`inactive safety layer is claimed active in UI: ${claim}`);
     }
   }
-  await page.getByRole("button", { name: "Авто" }).click();
-  await startButton.waitFor({ state: "visible", timeout: 60000 });
+  if (await page.getByRole("button", { name: "Авто" }).count()) {
+    throw new Error("car profile is visible in the public planner");
+  }
   await page.waitForFunction(() => {
     const button = Array.from(document.querySelectorAll("button")).find((node) =>
       node.textContent?.includes("Начать навигацию"),

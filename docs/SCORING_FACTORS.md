@@ -96,6 +96,12 @@ Inactive factors such as `avg_curb_risk`, `avg_traffic_intensity`, `avg_pedestri
 
 The public route cards intentionally hide technical source labels such as Valhalla or raw OSM dataset names. They show only the route name, time, distance, score, and one top reason. Detailed active source badges and inactive-layer notes are available inside "Почему такая оценка" and "О сервисе" so the main planner stays useful without implying unavailable data is active.
 
+The frontend also computes a display-only data confidence value from existing score metadata, active enrichment factors, and active provider metadata. It is not a new safety factor and does not change backend scoring. It exists to help users understand how much verified data supports the visible explanation.
+
+The UI separates route score, data confidence, route priority, and unknown risk. Route score is a comparative value, not a guarantee of safety. Data confidence describes support from available active metadata, not certainty about real-world conditions.
+
+The "Что по пути" timeline is derived from returned score reasons and maneuver text. It must not invent segment-level facts that the API did not provide. The “Что мы знаем / Что мы не знаем” block is built from the same route payload and the known inactive-layer list.
+
 ## Telemetry Confidence Rule
 
 `avg_telemetry_confidence` is computed only from real `sidewalk_cell_aggregates` and `sidewalk_samples` intersecting route-sampled H3 cells. It combines observation count, recency, raw-sample agreement where available, sensor/GPS confidence, and route-cell coverage.

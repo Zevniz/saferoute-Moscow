@@ -11,12 +11,14 @@ import {
   Layers as LayersIcon,
   Loader2,
   Menu,
+  Moon,
   Navigation2,
   Radio,
   RotateCcw,
   Route,
   Search,
   ShieldCheck,
+  Sun,
 } from "lucide-react";
 import {
   APP_TABS,
@@ -24,6 +26,7 @@ import {
   DEFAULT_LAYER_OPTIONS,
   INITIAL_VIEW_STATE,
   MAP_STYLE,
+  MAP_STYLE_DARK,
   PAGE_TRANSITION,
   PANEL_TRANSITION,
   PROFILE_OPTIONS,
@@ -44,9 +47,11 @@ import {
 } from "./components/AppPanels";
 import { DataCoverageNote } from "./components/DataLayersStatus";
 import { ErrorRecoveryCard, RouteEmptyState, RouteLoadingState, SearchEmptyState } from "./components/PlannerStates";
+import { RouteInsightPanel } from "./components/RouteInsight";
 import { SegmentedControl } from "./components/RouteControls";
 import { SafetyScorePanel } from "./components/SafetyScore";
 import { NativeSection, StatusRow } from "./components/SystemList";
+import { LiquidGlassShell } from "./components/ui/LiquidGlassShell";
 import { useHealth } from "./hooks/useHealth";
 import { useSidewalkCells } from "./hooks/useSidewalkCells";
 import {
@@ -80,13 +85,19 @@ export default function App() {
   const [routes, setRoutes] = useState([]);
   const [selectedRouteId, setSelectedRouteId] = useState(null);
   const [feedback, setFeedback] = useState(null);
-  const [panelOpen, setPanelOpen] = useState(true);
+  const [panelOpen, setPanelOpen] = useState(false);
   const [sectionMenuOpen, setSectionMenuOpen] = useState(false);
   const [layerOptions, setLayerOptions] = useState(DEFAULT_LAYER_OPTIONS);
   const [routeProgress, setRouteProgress] = useState(0);
   const [searchResults, setSearchResults] = useState([]);
   const [highlightedResultIndex, setHighlightedResultIndex] = useState(0);
   const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false);
+  const [theme, setTheme] = useState(() => {
+    if (typeof window === "undefined") {
+      return "light";
+    }
+    return window.localStorage.getItem("saferoute-theme") === "dark" ? "dark" : "light";
+  });
   const { health, loading: isHealthLoading, loadHealth } = useHealth();
   const postgresReady = health?.services?.postgres?.status === "ok";
   const sidewalkCellsAwaitingHealth = layerOptions.sidewalkQuality && !health;
@@ -137,10 +148,15 @@ export default function App() {
   const searchAriaLabel = activeEndpoint === "origin" ? "Введите точку отправления" : "Введите точку назначения";
   const mobileSheetState = selectedRoute && activeTab === "route" ? "medium" : "expanded";
   const activeAppTab = APP_TABS.find((tab) => tab.id === activeTab) ?? APP_TABS[0];
+  const activeMapStyle = theme === "dark" ? MAP_STYLE_DARK : MAP_STYLE;
 
   useEffect(() => {
     loadHealth();
   }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem("saferoute-theme", theme);
+  }, [theme]);
 
   useEffect(() => {
     if (!sectionMenuOpen) {
@@ -265,6 +281,9 @@ export default function App() {
     startTransition(() => {
       setFeedback(null);
       setPlannerStage(successStage === "navigating" ? "navigating" : "loading");
+      if (successStage !== "navigating") {
+        setPanelOpen(true);
+      }
     });
 
     try {
@@ -585,6 +604,7 @@ export default function App() {
       setSelectedRouteId(null);
       setPlannerStage("idle");
       setActiveTab("route");
+      setPanelOpen(false);
       setSectionMenuOpen(false);
       setFeedback(null);
     });
@@ -621,8 +641,13 @@ export default function App() {
 
   function handleSectionMenuToggle() {
     startTransition(() => {
-      setPanelOpen(true);
-      setSectionMenuOpen((open) => !open);
+      setSectionMenuOpen((open) => {
+        const nextOpen = !open;
+        if (nextOpen) {
+          setPanelOpen(false);
+        }
+        return nextOpen;
+      });
     });
   }
 
@@ -654,15 +679,15 @@ export default function App() {
             className="section-menu material-panel"
             role="dialog"
             aria-label="Меню разделов SafeRoute"
-            initial={{ opacity: 0, y: -8, scale: 0.975 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -6, scale: 0.985 }}
+            initial={{ opacity: 0, x: -18, scale: 0.985 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: -14, scale: 0.99 }}
             transition={PAGE_TRANSITION}
           >
             <div className="section-menu-header">
               <div>
-                <p className="section-menu-kicker">Разделы</p>
-                <p className="section-menu-title">Что открыть?</p>
+                <p className="section-menu-kicker">SafeRoute</p>
+                <p className="section-menu-title">Разделы</p>
               </div>
               <span className="section-menu-current">{activeAppTab.shortLabel ?? activeAppTab.label}</span>
             </div>
@@ -697,7 +722,7 @@ export default function App() {
               })}
             </nav>
             <p className="section-menu-note">
-              Главный экран остаётся про маршрут. Служебные данные и настройки карты живут здесь, чтобы не перегружать поиск.
+              Главный экран остаётся картой и поиском. Детали маршрута и данных открываются только по запросу.
             </p>
           </motion.div>
         ) : null}
@@ -860,22 +885,30 @@ export default function App() {
               </div>
 
               <div className="navigation-panel-actions mb-4 grid grid-cols-2 gap-3">
-                <button
+                <LiquidGlassShell
+                  as="button"
                   type="button"
                   onClick={handleShowRouteOptions}
+                  variant="pill"
+                  tone="neutral"
+                  interactive
                   className="secondary-route-button inline-flex items-center justify-center gap-2 rounded-full bg-white/62 px-4 py-3 text-sm font-bold text-on-surface-variant transition-all hover:bg-white/78 active:scale-[0.985]"
                 >
                   <Route size={15} />
                   Варианты
-                </button>
-                <button
+                </LiquidGlassShell>
+                <LiquidGlassShell
+                  as="button"
                   type="button"
                   onClick={() => handleTabSelect("map")}
+                  variant="pill"
+                  tone="neutral"
+                  interactive
                   className="secondary-route-button inline-flex items-center justify-center gap-2 rounded-full bg-white/62 px-4 py-3 text-sm font-bold text-on-surface-variant transition-all hover:bg-white/78 active:scale-[0.985]"
                 >
                   <LayersIcon size={15} />
                   Карта
-                </button>
+                </LiquidGlassShell>
               </div>
 
               <div className="min-h-0 flex-1 overflow-y-auto pr-2">
@@ -922,13 +955,17 @@ export default function App() {
               </div>
 
               <div className="mt-4">
-                <button
+                <LiquidGlassShell
+                  as="button"
                   type="button"
                   onClick={handleResetRoute}
+                  variant="pill"
+                  tone="danger"
+                  interactive
                   className="primary-route-button inline-flex w-full items-center justify-center gap-2 rounded-full bg-error px-4 py-4 text-sm font-bold text-on-error transition-all active:scale-[0.985]"
                 >
                   Завершить
-                </button>
+                </LiquidGlassShell>
               </div>
             </>
           ) : (
@@ -1176,6 +1213,27 @@ export default function App() {
                 </div>
               </a>
             </NativeSection>
+
+            <NativeSection title="Как SafeRoute будет становиться умнее" eyebrow="Стратегия">
+              <StatusRow
+                icon={ShieldCheck}
+                title="Сначала проверенные данные"
+                subtitle="Новые слои попадают в оценку только после источника, лицензии, checksum, edge-mapping и validation."
+                tone="success"
+              />
+              <StatusRow
+                icon={Radio}
+                title="Телеметрия только по согласию"
+                subtitle="В текущей сборке реальные telemetry rows равны нулю; будущие наблюдения должны быть opt-in и агрегированы."
+                tone="neutral"
+              />
+              <StatusRow
+                icon={Route}
+                title="Продуктовая цель"
+                subtitle="SafeRoute должен объяснять выбор маршрута, а не просто показывать линию на карте."
+                tone="neutral"
+              />
+            </NativeSection>
           </div>
         </div>
       );
@@ -1219,6 +1277,7 @@ export default function App() {
                     <span>{selectedRoute.properties?.score?.total ?? selectedRoute.properties?.safety_index ?? "--"}/100</span>
                   </summary>
                   <div className="route-details-content">
+                    <RouteInsightPanel route={selectedRoute} routes={routes} />
                     <SafetyScorePanel route={selectedRoute} />
                     <DataCoverageNote score={selectedRoute?.properties?.score} />
                   </div>
@@ -1236,31 +1295,39 @@ export default function App() {
             <span>
               {selectedRoute
                 ? selectedRoute.properties?.score
-                  ? `Индекс безопасности: ${selectedRoute.properties?.safety_index ?? "--"}%`
-                  : "Индекс безопасности недоступен без проверенного графа"
-                : "Постройте маршрут, чтобы оценить безопасность пути"}
+                  ? `Оценка маршрута: ${selectedRoute.properties?.safety_index ?? "--"}% по доступным данным, не гарантия`
+                  : "Оценка маршрута недоступна без проверенного графа"
+                : "Постройте маршрут, чтобы увидеть оценку по доступным данным"}
             </span>
           </div>
 
-          <button
+          <LiquidGlassShell
+            as="button"
             type="button"
             onClick={handleStartNavigation}
             disabled={primaryActionBusy || !destination}
+            variant="pill"
+            tone="primary"
+            interactive
             className="primary-route-button soul-gradient inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-4 text-sm font-bold tracking-[0.14em] text-on-primary shadow-[0_18px_36px_rgba(0,88,188,0.22)] transition-all hover:opacity-92 active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {primaryActionBusy ? <Loader2 size={16} className="animate-spin" /> : <Navigation2 size={16} />}
             <span>{primaryActionLabel}</span>
-          </button>
+          </LiquidGlassShell>
 
           {selectedRoute ? (
-            <button
+            <LiquidGlassShell
+              as="button"
               type="button"
               onClick={handleResetRoute}
+              variant="pill"
+              tone="neutral"
+              interactive
               className="secondary-route-button inline-flex w-full items-center justify-center gap-2 rounded-full bg-white/58 px-5 py-3 text-sm font-semibold text-on-surface-variant transition-all hover:bg-white/72 active:scale-[0.985]"
             >
               <RotateCcw size={14} />
               <span>Сбросить маршрут</span>
-            </button>
+            </LiquidGlassShell>
           ) : null}
         </div>
       </div>
@@ -1270,12 +1337,12 @@ export default function App() {
   return (
     <MotionConfig reducedMotion="user" transition={PANEL_TRANSITION}>
       <LayoutGroup>
-        <div className="app-shell relative h-screen w-screen overflow-hidden bg-surface text-on-surface">
+        <div className="app-shell relative h-screen w-screen overflow-hidden bg-surface text-on-surface" data-theme={theme}>
           <div className="absolute inset-0 z-0">
             <Map
               ref={mapRef}
               initialViewState={INITIAL_VIEW_STATE}
-              mapStyle={MAP_STYLE}
+              mapStyle={activeMapStyle}
               attributionControl={false}
               onClick={handleMapClick}
             >
@@ -1347,26 +1414,30 @@ export default function App() {
                   <div className="h-3 w-3 rounded-[4px] bg-error shadow-[0_0_0_10px_rgba(186,26,26,0.14)]" />
                 </Marker>
               ) : null}
-
-              <div
-                className="map-attribution absolute bottom-4 left-4 z-10 max-w-[calc(100vw-2rem)] rounded-full bg-white/82 px-3 py-1.5 text-[11px] font-semibold text-on-surface-variant shadow-[0_10px_26px_rgba(20,36,56,0.12)] backdrop-blur-xl"
-                aria-label="Map and enrichment data attribution"
-              >
-                {renderAttributionLinks()}
-              </div>
             </Map>
+            <div
+              className="map-attribution pointer-events-auto absolute bottom-4 left-4 z-10 max-w-[calc(100vw-2rem)] rounded-full bg-white/82 px-3 py-1.5 text-[11px] font-semibold text-on-surface-variant shadow-[0_10px_26px_rgba(20,36,56,0.12)] backdrop-blur-xl"
+              aria-label="Map and enrichment data attribution"
+            >
+              {renderAttributionLinks()}
+            </div>
             <motion.div
               className="map-atmosphere pointer-events-none absolute inset-0"
               initial={false}
               animate={{
-                opacity: plannerStage === "navigating" ? 0.62 : 1,
+                opacity: plannerStage === "navigating" ? 0.62 : panelOpen ? 0.86 : 0.18,
                 x: panelOpen ? 0 : -8,
               }}
               transition={PAGE_TRANSITION}
             />
           </div>
 
-          <div className="custom-map-zoom" aria-label="Масштаб карты">
+          <LiquidGlassShell
+            variant="toolbar"
+            tone="neutral"
+            className="custom-map-zoom"
+            aria-label="Масштаб карты"
+          >
             <button
               type="button"
               className="maplibregl-ctrl-zoom-in"
@@ -1383,7 +1454,21 @@ export default function App() {
             >
               −
             </button>
-          </div>
+          </LiquidGlassShell>
+
+          <LiquidGlassShell
+            as="button"
+            type="button"
+            variant="pill"
+            tone="neutral"
+            interactive
+            className="theme-toggle-control"
+            aria-label={theme === "dark" ? "Включить светлую тему" : "Включить тёмную тему"}
+            title={theme === "dark" ? "Светлая тема" : "Тёмная тема"}
+            onClick={() => setTheme((currentTheme) => (currentTheme === "dark" ? "light" : "dark"))}
+          >
+            {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+          </LiquidGlassShell>
 
           <AnimatePresence>
             {plannerVisible ? (
@@ -1398,8 +1483,11 @@ export default function App() {
                     transition={SHEET_TRANSITION}
                     className="fixed left-0 top-0 z-50 w-full px-4 pt-4 md:w-auto"
                   >
-                    <form
+                    <LiquidGlassShell
+                      as="form"
                       onSubmit={handleSearch}
+                      variant="toolbar"
+                      tone="neutral"
                       className="command-bar material-toolbar mx-auto flex w-full max-w-2xl items-center gap-1 rounded-[1.5rem] px-3 py-3 md:mx-0 md:max-w-xl"
                     >
                       <button
@@ -1419,10 +1507,13 @@ export default function App() {
                       <input
                         ref={searchInputRef}
                         value={query}
-                        onChange={(event) => {
+                      onChange={(event) => {
                           setQuery(event.target.value);
                           setActiveTab("route");
                           setSectionMenuOpen(false);
+                          if (event.target.value.trim().length >= 2) {
+                            setPanelOpen(false);
+                          }
                         }}
                         onFocus={() => {
                           setActiveTab("route");
@@ -1439,14 +1530,18 @@ export default function App() {
                         aria-expanded={isAutocompleteOpen}
                       />
 
-                      <button
+                      <LiquidGlassShell
+                        as="button"
                         type="submit"
+                        variant="pill"
+                        tone="primary"
+                        interactive
                         className="route-search-submit ml-2 inline-flex h-10 items-center justify-center rounded-full bg-primary px-4 text-sm font-bold text-on-primary transition-all hover:bg-primary/90 active:scale-[0.97] disabled:opacity-60"
                         disabled={primaryActionBusy}
                       >
                         {primaryActionBusy ? <Loader2 size={16} className="animate-spin" /> : "Найти"}
-                      </button>
-                    </form>
+                      </LiquidGlassShell>
+                    </LiquidGlassShell>
 
                     {renderSectionMenu()}
 
@@ -1471,10 +1566,7 @@ export default function App() {
                   className={cn(
                     "planner-panel material-panel fixed left-4 top-[94px] z-40 flex h-[calc(100%-7.2rem)] w-[min(26rem,calc(100vw-2rem))] flex-col rounded-[1.5rem] px-6 py-6",
                     `mobile-sheet-${mobileSheetState}`,
-                    panelOpen
-                      ? "translate-y-0 opacity-100 pointer-events-auto"
-                      : "-translate-y-[calc(100%+6rem)] opacity-0 pointer-events-none",
-                    "transition-all duration-300 md:opacity-100",
+                    panelOpen ? "planner-panel-open pointer-events-auto" : "planner-panel-hidden pointer-events-none",
                   )}
                 >
                   <button

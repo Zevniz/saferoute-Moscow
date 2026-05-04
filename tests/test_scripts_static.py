@@ -457,3 +457,86 @@ def test_osm_curb_risk_requires_real_curb_signal():
     assert module.curb_risk_from_tags({"kerb": "raised"}) == 0.8
     assert module.curb_risk_from_tags({"kerb": "flush"}) == 0.1
     assert module.curb_risk_from_tags({"sloped_curb": "yes"}) == 0.15
+
+
+def test_trust_ui_uses_beta_safe_copy_and_no_local_feedback_network():
+    app = (ROOT / "src" / "App.jsx").read_text(encoding="utf-8")
+    insight = (ROOT / "src" / "components" / "RouteInsight.jsx").read_text(encoding="utf-8")
+    route_utils = (ROOT / "src" / "lib" / "route-utils.js").read_text(encoding="utf-8")
+    e2e = (ROOT / "scripts" / "e2e-smoke.mjs").read_text(encoding="utf-8")
+
+    assert "Индекс безопасности" not in app
+    assert "не гарантия" in app
+    assert "Что мы знаем" in insight
+    assert "Что мы не знаем" in insight
+    assert "Неизвестные риски" in insight
+    assert "не влияет на маршруты" in insight
+    assert "fetch(" not in insight
+    assert "XMLHttpRequest" not in insight
+    assert "local feedback sent a network request" in e2e
+
+    combined_frontend = "\n".join([app, insight, route_utils])
+    forbidden_claims = [
+        "гарантированно безопас",
+        "наиболее безопасн",
+        "самый безопасн",
+        "телеметрия активна",
+        "измеренный трафик активен",
+        "плотность пешеходов активна",
+        "зоны сим активны",
+    ]
+    lowered = combined_frontend.lower()
+    for claim in forbidden_claims:
+        assert claim not in lowered
+
+    package_json = (ROOT / "package.json").read_text(encoding="utf-8")
+    trust_check = (ROOT / "scripts" / "check-trust-copy.mjs").read_text(encoding="utf-8")
+    assert "check:trust-copy" in package_json
+    assert "Trust-copy check failed" in trust_check
+
+
+def test_release_readiness_script_checks_docs_and_fallback_guardrails():
+    package_json = (ROOT / "package.json").read_text(encoding="utf-8")
+    release_check = (ROOT / "scripts" / "check-release-readiness.mjs").read_text(encoding="utf-8")
+
+    assert "check:release-readiness" in package_json
+    assert "docs/RELEASE_CHECKLIST.md" in release_check
+    assert "docs/PRODUCTION_READINESS_GAPS.md" in release_check
+    assert "ALLOW_PUBLIC_SERVICE_FALLBACK" in release_check
+    assert "request.url" in release_check
+    assert "saferoute_route_requests_total" in release_check
+
+
+def test_public_planner_does_not_offer_car_profile():
+    config = (ROOT / "src" / "config" / "safeRoute.js").read_text(encoding="utf-8")
+    e2e = (ROOT / "scripts" / "e2e-smoke.mjs").read_text(encoding="utf-8")
+
+    profile_block = config.split("export const PROFILE_OPTIONS = [", 1)[1].split("];", 1)[0]
+    scoring_block = config.split("export const SCORING_MODE_OPTIONS = [", 1)[1].split("];", 1)[0]
+    assert "id: \"car\"" not in profile_block
+    assert "Авто" not in profile_block
+    assert "Footprints" in scoring_block
+    assert "Accessibility" not in scoring_block
+    assert "car profile is visible in the public planner" in e2e
+
+
+def test_liquid_glass_is_limited_to_functional_controls():
+    package_json = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
+    npmrc = (ROOT / ".npmrc").read_text(encoding="utf-8")
+    shell = (ROOT / "src" / "components" / "ui" / "LiquidGlassShell.jsx").read_text(encoding="utf-8")
+    app = (ROOT / "src" / "App.jsx").read_text(encoding="utf-8")
+    route_controls = (ROOT / "src" / "components" / "RouteControls.jsx").read_text(encoding="utf-8")
+    app_panels = (ROOT / "src" / "components" / "AppPanels.jsx").read_text(encoding="utf-8")
+    route_insight = (ROOT / "src" / "components" / "RouteInsight.jsx").read_text(encoding="utf-8")
+    docs = (ROOT / "docs" / "LIQUID_GLASS_UI.md").read_text(encoding="utf-8")
+
+    assert "liquid-glass-react" in package_json["dependencies"]
+    assert "legacy-peer-deps=true" in npmrc
+    assert "data-liquid-native" in shell
+    assert "prefers-reduced-motion" in docs
+    assert "длинных блоков объяснений" in docs
+    assert "LiquidGlassShell" in app
+    assert "LiquidGlassShell" in route_controls
+    assert "LiquidGlassShell" in app_panels
+    assert "LiquidGlassShell" not in route_insight
+    assert "data-liquid-glass" not in route_insight

@@ -157,6 +157,8 @@ Backend verification status and exact pass/fail criteria are tracked in [Backend
 
 ```bash
 npm run lint
+npm run check:trust-copy
+npm run check:release-readiness
 npm run typecheck:backend
 npm run test:backend
 npm run db:telemetry-check
@@ -194,6 +196,18 @@ Backend-only passing state is `npm run check:backend` plus `npm run smoke:api` a
 - [Enrichment Data Model](docs/ENRICHMENT_DATA.md)
 - [Enrichment Sources](docs/ENRICHMENT_SOURCES.md)
 - [Scoring Factors](docs/SCORING_FACTORS.md)
+- [Trust Architecture](docs/TRUST_ARCHITECTURE.md)
+- [Explainability Model](docs/EXPLAINABILITY_MODEL.md)
+- [Beta Safety Limits](docs/BETA_SAFETY_LIMITS.md)
+- [Privacy And Telemetry](docs/PRIVACY_AND_TELEMETRY.md)
+- [Public Beta Readiness](docs/PUBLIC_BETA_READINESS.md)
+- [Release Checklist](docs/RELEASE_CHECKLIST.md)
+- [Production Readiness Gaps](docs/PRODUCTION_READINESS_GAPS.md)
+- [Observability](docs/OBSERVABILITY.md)
+- [Scoring Governance](docs/SCORING_GOVERNANCE.md)
+- [Data Freshness Policy](docs/DATA_FRESHNESS_POLICY.md)
+- [Incident Response](docs/INCIDENT_RESPONSE.md)
+- [Security Review](docs/SECURITY_REVIEW.md)
 - [Weather Risk](docs/WEATHER_RISK.md)
 - [Telemetry Confidence](docs/TELEMETRY_CONFIDENCE.md)
 - [Public Beta Release Notes](docs/PUBLIC_BETA_RELEASE_NOTES.md)

@@ -69,7 +69,7 @@ The scoring code is prepared to read those expanded factors as optional real col
 
 - `walk`: excludes motorway/trunk-like edges from the safety graph.
 - `bike`: excludes steps and penalizes primary/secondary roads.
-- `car`: excludes footway/path/steps/pedestrian/track/cycleway-like edges and falls back to a softer filter when the local graph is disconnected.
+- `car`: excludes footway/path/steps/pedestrian/track/cycleway-like edges and does not soften this filter. If the car-safe graph is disconnected, SafeRoute should return fewer/degraded car results rather than route a car over sidewalk-like edges. The public planner currently hides the car profile because the product is focused on walking and micromobility public beta use.
 
 ## Safety Index And Score
 

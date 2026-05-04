@@ -26,8 +26,9 @@ import {
 } from "lucide-react";
 
 import { APP_TABS, CARD_TRANSITION, FIGMA_DESIGN_URL, OVERLAY_TRANSITION, PANEL_TRANSITION, TAB_COPY } from "../config/safeRoute";
-import { formatDistance, formatInstructionMeta, getArrivalTime } from "../lib/route-utils";
+import { formatDistance, formatInstructionMeta, getArrivalTime, getRouteConfidence } from "../lib/route-utils";
 import { cn } from "../lib/ui";
+import { LiquidGlassShell } from "./ui/LiquidGlassShell";
 
 function getHintIcon(title) {
   const normalized = title.toLowerCase();
@@ -421,6 +422,7 @@ export function RouteCard({ route, index, isActive, onSelect }) {
   const scoreReasonLabel = formatScoreReason(scoreReason);
   const scoreTotal = typeof score?.total === "number" ? score.total : route.properties?.safety_index;
   const scoreTone = scoreTotal >= 85 ? "excellent" : scoreTotal >= 70 ? "good" : "caution";
+  const confidence = getRouteConfidence(route);
 
   return (
     <motion.button
@@ -477,6 +479,11 @@ export function RouteCard({ route, index, isActive, onSelect }) {
 
       <div className="route-card-footer">
         <div className="route-score-copy">{hasSafetyScore ? `Оценка ${scoreTotal}/100` : "Оценка появится после расчёта"}</div>
+        {confidence.value != null ? (
+          <div className="route-confidence-copy">
+            Данные {confidence.value}%
+          </div>
+        ) : null}
       </div>
     </motion.button>
   );
@@ -493,7 +500,11 @@ export function NavigationInstructionCard({ hint, gpsStatus, rerouting, onOpenPl
       transition={OVERLAY_TRANSITION}
       className="top-instruction-shell pointer-events-none fixed left-0 right-0 top-0 z-50 flex justify-center px-4 pt-6 md:pt-8"
     >
-      <div className="top-instruction pointer-events-auto flex w-full max-w-2xl items-center gap-4 rounded-[1.5rem] px-4 py-4">
+      <LiquidGlassShell
+        variant="toolbar"
+        tone="neutral"
+        className="top-instruction pointer-events-auto flex w-full max-w-2xl items-center gap-4 rounded-[1.5rem] px-4 py-4"
+      >
         <button
           type="button"
           onClick={onOpenPlanner}
@@ -513,7 +524,7 @@ export function NavigationInstructionCard({ hint, gpsStatus, rerouting, onOpenPl
             {gpsStatus || hint.subtitle}
           </div>
         </div>
-      </div>
+      </LiquidGlassShell>
     </motion.div>
   );
 }
@@ -531,7 +542,11 @@ export function TripSheet({ route, livePosition, activeInstructionIndex, onShowP
       transition={OVERLAY_TRANSITION}
       className="fixed bottom-0 left-0 right-0 z-50 flex justify-center px-4 pb-6 md:pb-8"
     >
-      <div className="trip-sheet pointer-events-auto grid w-full max-w-3xl grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-[1.5rem] px-5 py-5">
+      <LiquidGlassShell
+        variant="card"
+        tone="neutral"
+        className="trip-sheet pointer-events-auto grid w-full max-w-3xl grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-[1.5rem] px-5 py-5"
+      >
         <div className="trip-sheet-copy min-w-0">
           <div className="trip-sheet-time text-3xl font-black tracking-tight text-primary">{getArrivalTime(route.properties?.estimated_mins ?? 0)}</div>
           <div className="trip-sheet-meta mt-1 text-sm font-medium text-on-surface-variant md:text-base">
@@ -549,23 +564,31 @@ export function TripSheet({ route, livePosition, activeInstructionIndex, onShowP
           ) : null}
         </div>
         <div className="trip-sheet-actions flex shrink-0 items-center gap-3">
-          <button
+          <LiquidGlassShell
+            as="button"
             type="button"
             onClick={onShowPlanner}
+            variant="pill"
+            tone="neutral"
+            interactive
             className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-white/68 text-on-surface shadow-[0_6px_18px_rgba(0,0,0,0.06)] transition-all hover:bg-white/82 active:scale-95"
             aria-label="Показать навигационное меню"
           >
             <Route size={22} />
-          </button>
-          <button
+          </LiquidGlassShell>
+          <LiquidGlassShell
+            as="button"
             type="button"
             onClick={onReset}
+            variant="pill"
+            tone="danger"
+            interactive
             className="rounded-full bg-error px-7 py-4 text-sm font-bold tracking-[0.12em] text-on-error shadow-[0_12px_28px_rgba(186,26,26,0.2)] transition-all hover:opacity-92 active:scale-95"
           >
             Завершить
-          </button>
+          </LiquidGlassShell>
         </div>
-      </div>
+      </LiquidGlassShell>
     </motion.div>
   );
 }

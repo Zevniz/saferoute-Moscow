@@ -15,6 +15,9 @@ SafeRoute is ready for public beta / self-hosted MVP with active OSM-derived enr
 - Browser/e2e/smoke/route corpus checks pass in local self-hosted verification.
 - Product UI is route-first for public beta: route cards show user-facing time, distance, score, and one reason; technical source details live in the score disclosure and "О сервисе".
 - Navigation mode keeps map controls usable, shows the next maneuver and remaining trip summary first, and keeps the full maneuver list secondary.
+- Route details separate safety score from data confidence, compare the selected route with alternatives, and show a pre-trip "what to expect" timeline derived only from returned API reasons.
+- Route details explicitly state that the score is based on available data and is not a safety guarantee.
+- Local route feedback is UI-only in this build. It stays in the current interface session, is not sent to the server, does not affect routes, and must not be counted as telemetry.
 
 ## Conditional
 
@@ -53,3 +56,8 @@ npm run route:corpus-check
 npm run perf:route-smoke
 APP_URL=http://127.0.0.1:5173 npm run test:e2e
 ```
+
+Product strategy and UX audit:
+
+- `docs/PRODUCT_STRATEGY.md`
+- `docs/UX_REDESIGN_AUDIT.md`
