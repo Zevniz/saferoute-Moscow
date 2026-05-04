@@ -4,6 +4,7 @@ import { AlertCircle, CheckCircle2, HeartHandshake, Info, MessageSquare, Moon, S
 
 import { OVERLAY_TRANSITION } from "../config/safeRoute";
 import { getRouteConfidence, getRouteInsight, getRouteKnowledge, getRouteTimeline } from "../lib/route-utils";
+import { formatCrossingSummary, getCrossingSafetyDescription, getCrossingIcon } from "../lib/crossing-utils";
 import { cn } from "../lib/ui";
 
 const FEEDBACK_OPTIONS = [

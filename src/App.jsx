@@ -1400,6 +1400,39 @@ export default function App() {
                 </Source>
               ) : null}
 
+              {/* Crossing markers */}
+              {selectedRoute && selectedRoute.properties.crossings && layerOptions.route && (
+                <>
+                  {selectedRoute.properties.crossings.map((crossing, idx) => (
+                    <Marker
+                      key={`crossing-${idx}`}
+                      longitude={crossing.lon}
+                      latitude={crossing.lat}
+                    >
+                      <div
+                        className="crossing-marker"
+                        style={{
+                          backgroundColor: getCrossingColor(crossing.type),
+                          width: '24px',
+                          height: '24px',
+                          borderRadius: '50%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '14px',
+                          border: '2px solid white',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                          cursor: 'pointer',
+                        }}
+                        title={getCrossingLabel(crossing.type)}
+                      >
+                        {getCrossingIcon(crossing.type)}
+                      </div>
+                    </Marker>
+                  ))}
+                </>
+              )}
+
               {layerOptions.pins ? (
                 <Marker longitude={originMarker.lon} latitude={originMarker.lat}>
                   <div className="relative">
