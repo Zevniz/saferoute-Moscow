@@ -176,6 +176,7 @@ class RouteProperties(BaseModel):
     score: Optional[RouteScoreDetails] = None
     crossings: List[CrossingPoint] = Field(default_factory=list)
     crossing_summary: Optional[CrossingSummary] = None
+    debug: Optional[Dict[str, Any]] = None
 
 
 class RouteFeature(BaseModel):

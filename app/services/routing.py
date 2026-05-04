@@ -718,6 +718,63 @@ def enrich_route_with_crossings(route_data: Dict[str, Any]) -> None:
     route_data['crossing_summary'] = build_crossing_summary(crossings)
 
 
+
+
+def calculate_route_debug_info(route_data: Dict[str, Any], raw_start: Optional[Dict[str, float]] = None, raw_finish: Optional[Dict[str, float]] = None) -> Dict[str, Any]:
+    """
+    Calculate debug information about route snapping and geometry.
+    
+    Helps understand why route might have unexpected shape near start/finish.
+    """
+    import math
+    
+    def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+        """Calculate distance in meters between two points."""
+        R = 6371000  # Earth radius in meters
+        phi1 = math.radians(lat1)
+        phi2 = math.radians(lat2)
+        dphi = math.radians(lat2 - lat1)
+        dlambda = math.radians(lon2 - lon1)
+        a = math.sin(dphi/2)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda/2)**2
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+        return R * c
+    
+    geometry = route_data.get('geometry', {})
+    coordinates = geometry.get('coordinates', [])
+    
+    if not coordinates:
+        return {}
+    
+    # First and last points of route (snapped)
+    snapped_start = {'lon': coordinates[0][0], 'lat': coordinates[0][1]}
+    snapped_finish = {'lon': coordinates[-1][0], 'lat': coordinates[-1][1]}
+    
+    debug_info = {
+        'geometry_points_count': len(coordinates),
+        'snapped_start': snapped_start,
+        'snapped_finish': snapped_finish,
+    }
+    
+    # Calculate snapping distances if raw points provided
+    if raw_start:
+        snap_dist = haversine_distance(
+            raw_start['lat'], raw_start['lon'],
+            snapped_start['lat'], snapped_start['lon']
+        )
+        debug_info['raw_start'] = raw_start
+        debug_info['start_snap_distance_m'] = round(snap_dist, 1)
+    
+    if raw_finish:
+        snap_dist = haversine_distance(
+            raw_finish['lat'], raw_finish['lon'],
+            snapped_finish['lat'], snapped_finish['lon']
+        )
+        debug_info['raw_finish'] = raw_finish
+        debug_info['finish_snap_distance_m'] = round(snap_dist, 1)
+    
+    return debug_info
+
+
 def build_route_request(profile: str, lat1: float, lon1: float, lat2: float, lon2: float, alternates: int) -> Dict[str, Any]:
     """Build a Valhalla route request with Russian maneuvers enabled."""
     
@@ -1220,6 +1277,7 @@ def build_route_feature(profile: str, variant: str, route_data: Dict[str, Any], 
             score=score_details,
             crossings=route_data.get("crossings", []),
             crossing_summary=route_data.get("crossing_summary"),
+            debug=route_data.get("debug"),
         ),
         geometry=route_data["geometry"],
     )
