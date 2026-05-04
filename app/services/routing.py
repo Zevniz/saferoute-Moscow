@@ -596,6 +596,128 @@ def apply_unscored_safety_fallback(routes: List[Dict[str, Any]], profile: str, m
     log_event("route_safety_fallback", profile=profile, mode=mode_value, routes=len(routes), reason=reason)
 
 
+
+
+def extract_crossings_from_route(route_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """
+    Extract crossing points from route data.
+    
+    Analyzes route instructions and geometry to identify pedestrian crossings.
+    Currently uses heuristic-based detection from instruction text.
+    
+    TODO: Integrate with OSM crossing data from moscow_network table
+    for more accurate crossing type classification using:
+    - crossing_count
+    - controlled_crossing_count  
+    - uncontrolled_crossing_count
+    - crossing_risk
+    """
+    crossings = []
+    instructions = route_data.get('instructions', [])
+    geometry = route_data.get('geometry', {})
+    coordinates = geometry.get('coordinates', [])
+    
+    if not instructions or not coordinates:
+        return crossings
+    
+    for instr in instructions:
+        # Handle both dict and Instruction object
+        if isinstance(instr, dict):
+            text = instr.get('text', '').lower()
+            begin_idx = instr.get('begin_shape_index', 0)
+        else:
+            # Instruction object (Pydantic model)
+            text = instr.text.lower()
+            begin_idx = instr.begin_shape_index
+        
+        # Skip if no valid coordinate
+        if begin_idx >= len(coordinates):
+            continue
+        
+        lon, lat = coordinates[begin_idx]
+        
+        # Detect crossing type from instruction text
+        crossing_type = None
+        controlled = None
+        confidence = 0.0
+        
+        # Traffic signals / светофоры
+        if any(keyword in text for keyword in ['светофор', 'traffic signal', 'сигнал']):
+            crossing_type = 'traffic_signal'
+            controlled = True
+            confidence = 0.8
+        
+        # Marked crossings / зебры
+        elif any(keyword in text for keyword in ['зебр', 'разметк', 'marked', 'пешеходн']):
+            if 'подземн' in text or 'underpass' in text or 'тоннел' in text:
+                crossing_type = 'underpass'
+                controlled = True
+                confidence = 0.9
+            elif 'надземн' in text or 'overpass' in text or 'мост' in text:
+                crossing_type = 'overpass'
+                controlled = True
+                confidence = 0.9
+            else:
+                crossing_type = 'marked'
+                controlled = False
+                confidence = 0.7
+        
+        # Crossings mentioned in instructions
+        elif 'переход' in text or 'crossing' in text or 'пересек' in text:
+            crossing_type = 'unmarked'
+            controlled = False
+            confidence = 0.5
+        
+        # Add crossing if detected
+        if crossing_type:
+            crossings.append({
+                'lat': lat,
+                'lon': lon,
+                'type': crossing_type,
+                'controlled': controlled,
+                'confidence': confidence
+            })
+    
+    return crossings
+
+
+def build_crossing_summary(crossings: List[Dict[str, Any]]) -> Dict[str, int]:
+    """
+    Build summary statistics for crossings on the route.
+    
+    Returns a dict with counts for each crossing type.
+    """
+    summary = {
+        'total': len(crossings),
+        'traffic_signals': 0,
+        'marked': 0,
+        'unmarked': 0,
+        'underpass': 0,
+        'overpass': 0,
+        'unknown': 0,
+    }
+    
+    for crossing in crossings:
+        crossing_type = crossing.get('type', 'unknown')
+        if crossing_type in summary:
+            summary[crossing_type] += 1
+        else:
+            summary['unknown'] += 1
+    
+    return summary
+
+
+def enrich_route_with_crossings(route_data: Dict[str, Any]) -> None:
+    """
+    Enrich route data with crossing information in-place.
+    
+    Adds 'crossings' and 'crossing_summary' fields to route_data.
+    """
+    crossings = extract_crossings_from_route(route_data)
+    route_data['crossings'] = crossings
+    route_data['crossing_summary'] = build_crossing_summary(crossings)
+
+
 def build_route_request(profile: str, lat1: float, lon1: float, lat2: float, lon2: float, alternates: int) -> Dict[str, Any]:
     """Build a Valhalla route request with Russian maneuvers enabled."""
     
@@ -1056,6 +1178,11 @@ def build_route_feature(profile: str, variant: str, route_data: Dict[str, Any], 
     """Build one public route feature."""
 
     mode_value = normalize_route_mode(mode).value
+    
+    # Enrich route with crossing data if not already present
+    if 'crossings' not in route_data:
+        enrich_route_with_crossings(route_data)
+    
     bbox = route_data.get("bbox") or geometry_bounds(route_data["geometry"])
     score = route_data.get("score")
     source = str(route_data["source"])
@@ -1091,6 +1218,8 @@ def build_route_feature(profile: str, variant: str, route_data: Dict[str, Any], 
             source=source,
             navigable=True,
             score=score_details,
+            crossings=route_data.get("crossings", []),
+            crossing_summary=route_data.get("crossing_summary"),
         ),
         geometry=route_data["geometry"],
     )

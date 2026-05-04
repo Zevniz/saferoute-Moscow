@@ -89,6 +89,56 @@ class Instruction(BaseModel):
     lanes: List[Dict[str, Any]] = Field(default_factory=list)
 
 
+
+
+class CrossingPoint(BaseModel):
+    """A pedestrian crossing point on the route with safety metadata."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "lat": 55.7520,
+                "lon": 37.6175,
+                "type": "traffic_signal",
+                "controlled": True,
+                "confidence": 0.95,
+            }
+        }
+    )
+
+    lat: float
+    lon: float
+    type: Literal["traffic_signal", "marked", "unmarked", "underpass", "overpass", "unknown"] = "unknown"
+    controlled: Optional[bool] = None
+    confidence: Optional[float] = None
+
+
+class CrossingSummary(BaseModel):
+    """Summary of crossings on the route for quick safety overview."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "total": 5,
+                "traffic_signals": 3,
+                "marked": 1,
+                "unmarked": 0,
+                "underpass": 0,
+                "overpass": 0,
+                "unknown": 1,
+            }
+        }
+    )
+
+    total: int = 0
+    traffic_signals: int = 0
+    marked: int = 0
+    unmarked: int = 0
+    underpass: int = 0
+    overpass: int = 0
+    unknown: int = 0
+
+
 class RouteScoreReason(BaseModel):
     """One explainable scoring reason based on real route attributes."""
 
@@ -124,6 +174,8 @@ class RouteProperties(BaseModel):
     source: str
     navigable: bool = True
     score: Optional[RouteScoreDetails] = None
+    crossings: List[CrossingPoint] = Field(default_factory=list)
+    crossing_summary: Optional[CrossingSummary] = None
 
 
 class RouteFeature(BaseModel):
