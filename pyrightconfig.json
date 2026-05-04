@@ -1,10 +1,16 @@
 {
-  "include": ["app"],
-  "exclude": ["**/__pycache__"],
+  "include": [
+    "app"
+  ],
+  "exclude": [
+    "**/__pycache__"
+  ],
   "pythonVersion": "3.11",
   "typeCheckingMode": "basic",
   "reportMissingTypeStubs": false,
   "reportUnknownMemberType": false,
   "reportUnknownVariableType": false,
-  "reportUnknownArgumentType": false
+  "reportUnknownArgumentType": false,
+  "venvPath": ".",
+  "venv": "venv"
 }
