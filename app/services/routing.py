@@ -598,12 +598,17 @@ def apply_unscored_safety_fallback(routes: List[Dict[str, Any]], profile: str, m
 
 def build_route_request(profile: str, lat1: float, lon1: float, lat2: float, lon2: float, alternates: int) -> Dict[str, Any]:
     """Build a Valhalla route request with Russian maneuvers enabled."""
+    
+    # HOTFIX: Disable alternates due to Valhalla bug with Russian OSM data
+    # Error: GetTags: offset exceeds size of text list
+    # TODO: Rebuild Valhalla tiles or upgrade Valhalla version
+    safe_alternates = 0  # Temporarily disable alternates
 
     return {
         "locations": [{"lat": lat1, "lon": lon1}, {"lat": lat2, "lon": lon2}],
         "costing": VALHALLA_COSTING[profile],
         "directions_options": {"language": "ru-RU", "units": "kilometers"},
-        "alternates": max(0, alternates - 1),
+        "alternates": safe_alternates,
     }
 
 
