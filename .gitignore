@@ -43,3 +43,20 @@ data/graph/release/
 
 # AI agent skills
 .agents/
+
+# Kilo workspace
+.kilo/
+
+# Additional venv patterns
+venv.py39.backup/
+
+# Data files - OSM, DB dumps, tiles
+data/**/*.pbf
+data/**/*.osm
+data/**/*.dump
+data/**/*.mbtiles
+data/**/*.sqlite
+data/**/tiles/
+
+# Stitch creative studio
+stitch_creative_studio/

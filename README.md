@@ -1,10 +1,10 @@
-# SafeRoute
+# saferoute-Moscow
 
-SafeRoute is a public beta safety-first navigator for Moscow micromobility. It uses real Valhalla/PostGIS routes and active OpenStreetMap-derived enrichment for surface, surface quality, sidewalk presence, lighting tags, sparse numeric slope data, and OSM crossing way counts. Advanced safety layers for curb risk, measured traffic, pedestrian density, micromobility zones, production weather risk, and telemetry confidence are not active by default and do not affect scoring unless a real validated source/provider is enabled.
+saferoute-Moscow is a public beta safety-first navigator for Moscow micromobility. It uses real Valhalla/PostGIS routes and active OpenStreetMap-derived enrichment for surface, surface quality, sidewalk presence, lighting tags, sparse numeric slope data, and OSM crossing way counts. Advanced safety layers for curb risk, measured traffic, pedestrian density, micromobility zones, production weather risk, and telemetry confidence are not active by default and do not affect scoring unless a real validated source/provider is enabled.
 
 ## Public Beta Data Status
 
-SafeRoute is ready for public beta / self-hosted MVP use. It is not a full public safety launch for every desired safety layer.
+saferoute-Moscow is ready for public beta / self-hosted MVP use. It is not a full public safety launch for every desired safety layer.
 
 Active real enrichment datasets:
 
@@ -224,7 +224,7 @@ Backend-only passing state is `npm run check:backend` plus `npm run smoke:api` a
 - [Scoring Roadmap](docs/scoring-roadmap.md)
 - [Self-Hosted Backend Stack](docs/SELF_HOSTED.md)
 - [Frontend Motion System](docs/frontend-motion.md)
-- [Figma Handoff](docs/figma-handoff.md)
+
 - [Operations Runbook](docs/operations.md)
 - [Telemetry And Edge Roadmap](docs/telemetry-edge.md)
 - [Transit Roadmap](docs/transit-roadmap.md)
