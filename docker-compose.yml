@@ -96,12 +96,12 @@ services:
     image: ghcr.io/nilsnolde/docker-valhalla/valhalla:latest
     environment:
       build_admins: "True"
-      build_time_zones: "True"
+      build_time_zones: "False"
       build_elevation: "False"
       build_tar: "True"
       serve_tiles: "True"
       server_threads: "2"
-      tile_urls: "${VALHALLA_TILE_URLS:-file:///custom_files/osm/moscow-oblast.osm.pbf}"
+      tile_urls: "${VALHALLA_TILE_URLS:-file:///custom_files/osm/moscow-oblast.osm.poscow-oblast.osm.pbf}"
     ports:
       - "8002:8002"
     volumes:
